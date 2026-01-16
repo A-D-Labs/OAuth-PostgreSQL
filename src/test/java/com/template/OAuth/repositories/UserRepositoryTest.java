@@ -1,12 +1,11 @@
 package com.template.OAuth.repositories;
 
+import com.template.OAuth.BaseIntegrationTest;
 import com.template.OAuth.entities.User;
 import com.template.OAuth.enums.AuthProvider;
 import com.template.OAuth.enums.Role;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.Instant;
@@ -14,12 +13,13 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DataJpaTest
-@ActiveProfiles("test")
-class UserRepositoryTest {
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.annotation.Transactional;
 
-    @Autowired
-    private TestEntityManager entityManager;
+@SpringBootTest
+@Transactional
+@ActiveProfiles("test")
+class UserRepositoryTest extends BaseIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
@@ -34,8 +34,7 @@ class UserRepositoryTest {
         user.setEnabled(true);
         user.addRole(Role.USER);
 
-        entityManager.persist(user);
-        entityManager.flush();
+        userRepository.saveAndFlush(user);
 
         // Act
         Optional<User> found = userRepository.findByEmail("test@example.com");
@@ -56,8 +55,7 @@ class UserRepositoryTest {
         user.setEnabled(true);
         user.addRole(Role.USER);
 
-        entityManager.persist(user);
-        entityManager.flush();
+        userRepository.saveAndFlush(user);
 
         // Act
         Optional<User> found = userRepository.findByGoogleId("google-123");
@@ -79,8 +77,7 @@ class UserRepositoryTest {
         user.setVerificationTokenExpiry(Instant.now().plusSeconds(3600));
         user.addRole(Role.USER);
 
-        entityManager.persist(user);
-        entityManager.flush();
+        userRepository.saveAndFlush(user);
 
         // Act
         Optional<User> found = userRepository.findByVerificationToken("verification-token");
@@ -102,8 +99,7 @@ class UserRepositoryTest {
         user.setPasswordResetTokenExpiry(Instant.now().plusSeconds(3600));
         user.addRole(Role.USER);
 
-        entityManager.persist(user);
-        entityManager.flush();
+        userRepository.saveAndFlush(user);
 
         // Act
         Optional<User> found = userRepository.findByPasswordResetToken("reset-token");

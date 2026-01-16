@@ -21,9 +21,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.Objects;
 
 @Component
-@Order(2)  // Apply after the main rate limiting filter
+@Order(2) // Apply after the main rate limiting filter
 public class AuthenticationRateLimitFilter extends OncePerRequestFilter {
 
     private final RateLimitService rateLimitService;
@@ -37,8 +38,8 @@ public class AuthenticationRateLimitFilter extends OncePerRequestFilter {
     private final ConcurrentMap<String, Long> throttledIPs = new ConcurrentHashMap<>();
 
     public AuthenticationRateLimitFilter(RateLimitService rateLimitService,
-                                         AuditService auditService,
-                                         ObjectMapper objectMapper) {
+            AuditService auditService,
+            ObjectMapper objectMapper) {
         this.rateLimitService = rateLimitService;
         this.auditService = auditService;
         this.objectMapper = objectMapper;
@@ -55,8 +56,8 @@ public class AuthenticationRateLimitFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
-                                    @NonNull HttpServletResponse response,
-                                    @NonNull FilterChain filterChain)
+            @NonNull HttpServletResponse response,
+            @NonNull FilterChain filterChain)
             throws ServletException, IOException {
 
         String clientIp = getClientIP(request);
@@ -83,13 +84,14 @@ public class AuthenticationRateLimitFilter extends OncePerRequestFilter {
         }
 
         // For authentication endpoints, apply stricter rate limiting
-        Bucket bucket = rateLimitService.resolveBucketForAuthRequest(clientIp);
+        Bucket bucket = rateLimitService.resolveBucketForAuthRequest(Objects.requireNonNull(clientIp));
         long consumeTokens = 1;
 
-        // If there are already failed attempts, consume more tokens (increasing the cost)
+        // If there are already failed attempts, consume more tokens (increasing the
+        // cost)
         Integer attempts = failedAttempts.get(clientIp);
         if (attempts != null && attempts > 0) {
-            consumeTokens = Math.min(attempts + 1, 5);  // Max 5 tokens per request after failures
+            consumeTokens = Math.min(attempts + 1, 5); // Max 5 tokens per request after failures
         }
 
         long remainingTokens = rateLimitService.checkRateLimit(bucket, consumeTokens);
@@ -110,7 +112,8 @@ public class AuthenticationRateLimitFilter extends OncePerRequestFilter {
 
         filterChain.doFilter(request, responseWrapper);
 
-        // If login was unsuccessful (based on response status), increment failed attempts
+        // If login was unsuccessful (based on response status), increment failed
+        // attempts
         if (responseWrapper.getStatus() == HttpStatus.UNAUTHORIZED.value() ||
                 responseWrapper.getStatus() == HttpStatus.FORBIDDEN.value()) {
 
@@ -161,11 +164,13 @@ public class AuthenticationRateLimitFilter extends OncePerRequestFilter {
         response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
     }
 
+    @NonNull
     private String getClientIP(HttpServletRequest request) {
         String xfHeader = request.getHeader("X-Forwarded-For");
         if (xfHeader != null) {
             return xfHeader.split(",")[0].trim();
         }
-        return request.getRemoteAddr();
+        String remoteAddr = request.getRemoteAddr();
+        return remoteAddr != null ? remoteAddr : "unknown";
     }
 }

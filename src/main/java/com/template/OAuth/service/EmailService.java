@@ -14,6 +14,7 @@ import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
 import java.io.UnsupportedEncodingException;
+import java.util.Objects;
 
 @Service
 public class EmailService {
@@ -27,9 +28,9 @@ public class EmailService {
 
     @Autowired
     public EmailService(JavaMailSender mailSender,
-                        TemplateEngine templateEngine,
-                        AppProperties appProperties,
-                        MessageService messageService) {
+            TemplateEngine templateEngine,
+            AppProperties appProperties,
+            MessageService messageService) {
         this.mailSender = mailSender;
         this.templateEngine = templateEngine;
         this.appProperties = appProperties;
@@ -45,19 +46,19 @@ public class EmailService {
             Context context = new Context();
             context.setVariable("name", name);
             String verifyUrl = appProperties.getApplication().getVerifyBaseUrl()
-            + "/auth/verify-email?token=" + token;
+                    + "/auth/verify-email?token=" + token;
             context.setVariable("verificationUrl", verifyUrl);
-        
+
             context.setVariable("expirationHours", appProperties.getSecurity().getVerification().getExpirationHours());
             context.setVariable("supportEmail", appProperties.getApplication().getSupportEmail());
 
             String emailContent = templateEngine.process("mail/email-verification", context);
-           
 
-            helper.setTo(to);
+            helper.setTo(Objects.requireNonNull(to));
             helper.setSubject(messageService.getMessage("email.verification.subject"));
-            helper.setText(emailContent, true);
-            helper.setFrom(appProperties.getEmail().getFromAddress(), appProperties.getEmail().getFromName());
+            helper.setText(Objects.requireNonNull(emailContent), true);
+            helper.setFrom(Objects.requireNonNull(appProperties.getEmail().getFromAddress()),
+                    Objects.requireNonNull(appProperties.getEmail().getFromName()));
 
             mailSender.send(mimeMessage);
 
@@ -82,10 +83,11 @@ public class EmailService {
 
             String emailContent = templateEngine.process("mail/password-reset", context);
 
-            helper.setTo(to);
+            helper.setTo(Objects.requireNonNull(to));
             helper.setSubject(messageService.getMessage("email.password.reset.subject"));
-            helper.setText(emailContent, true);
-            helper.setFrom(appProperties.getEmail().getFromAddress(), appProperties.getEmail().getFromName());
+            helper.setText(Objects.requireNonNull(emailContent), true);
+            helper.setFrom(Objects.requireNonNull(appProperties.getEmail().getFromAddress()),
+                    Objects.requireNonNull(appProperties.getEmail().getFromName()));
 
             mailSender.send(mimeMessage);
 
@@ -108,10 +110,11 @@ public class EmailService {
 
             String emailContent = templateEngine.process("mail/welcome-email", context);
 
-            helper.setTo(to);
+            helper.setTo(Objects.requireNonNull(to));
             helper.setSubject(messageService.getMessage("email.welcome.subject"));
-            helper.setText(emailContent, true);
-            helper.setFrom(appProperties.getEmail().getFromAddress(), appProperties.getEmail().getFromName());
+            helper.setText(Objects.requireNonNull(emailContent), true);
+            helper.setFrom(Objects.requireNonNull(appProperties.getEmail().getFromAddress()),
+                    Objects.requireNonNull(appProperties.getEmail().getFromName()));
 
             mailSender.send(mimeMessage);
 

@@ -30,21 +30,29 @@ import static org.mockito.Mockito.doNothing;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
+import com.template.OAuth.BaseIntegrationTest;
+import org.springframework.transaction.annotation.Transactional;
+
 @SpringBootTest(classes = OAuthApplication.class)
 @AutoConfigureMockMvc
+@Transactional
 @ActiveProfiles("test")
-class RefreshTokenFlowIT {
+class RefreshTokenFlowIT extends BaseIntegrationTest {
 
     private static final Logger log = LoggerFactory.getLogger(RefreshTokenFlowIT.class);
 
     private static final String ACCESS_COOKIE = "jwt";
     private static final String REFRESH_COOKIE = "refresh_token";
 
-    @Autowired private MockMvc mockMvc;
-    @Autowired private ObjectMapper objectMapper;
-    @Autowired private UserRepository userRepository;
+    @Autowired
+    private MockMvc mockMvc;
+    @Autowired
+    private ObjectMapper objectMapper;
+    @Autowired
+    private UserRepository userRepository;
 
-    @MockBean private EmailService emailService;
+    @MockBean
+    private EmailService emailService;
 
     private String email;
     private final String password = "OrigPassw0rd!";
@@ -71,7 +79,7 @@ class RefreshTokenFlowIT {
                 post("/refresh-token")
                         .cookie(login.refreshCookie)
                         .contentType(MediaType.APPLICATION_JSON))
-            .andReturn();
+                .andReturn();
 
         assertThat(refreshRes.getResponse().getStatus()).isEqualTo(200);
         JsonNode refreshed = parseJson(refreshRes);
@@ -90,7 +98,7 @@ class RefreshTokenFlowIT {
                 post("/refresh-token")
                         .cookie(bogus)
                         .contentType(MediaType.APPLICATION_JSON))
-            .andReturn();
+                .andReturn();
 
         assertThat(res.getResponse().getStatus()).isBetween(400, 499);
     }
@@ -103,7 +111,7 @@ class RefreshTokenFlowIT {
                 post("/refresh-token")
                         .cookie(login.refreshCookie)
                         .contentType(MediaType.APPLICATION_JSON))
-            .andReturn();
+                .andReturn();
 
         assertThat(first.getResponse().getStatus()).isEqualTo(200);
         Cookie rotated = getCookieByName(first, REFRESH_COOKIE);
@@ -113,7 +121,7 @@ class RefreshTokenFlowIT {
                 post("/refresh-token")
                         .cookie(rotated)
                         .contentType(MediaType.APPLICATION_JSON))
-            .andReturn();
+                .andReturn();
 
         assertThat(second.getResponse().getStatus()).isEqualTo(200);
         JsonNode payload = parseJson(second);
@@ -135,7 +143,7 @@ class RefreshTokenFlowIT {
         req.setPassword(password);
 
         MvcResult registerRes = mockMvc.perform(
-                    post("/auth/register")
+                post("/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andReturn();
@@ -158,7 +166,7 @@ class RefreshTokenFlowIT {
                 """.formatted(email, password);
 
         MvcResult loginRes = mockMvc.perform(
-                    post("/auth/email-login")
+                post("/auth/email-login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(loginJson))
                 .andReturn();
@@ -201,12 +209,15 @@ class RefreshTokenFlowIT {
 
     private Cookie getCookieByName(MvcResult res, String name) {
         Cookie[] cookies = res.getResponse().getCookies();
-        if (cookies == null) return null;
+        if (cookies == null)
+            return null;
         for (Cookie c : cookies) {
-            if (name.equals(c.getName())) return c;
+            if (name.equals(c.getName()))
+                return c;
         }
         return null;
     }
 
-    private record LoginResponse(String accessToken, Cookie refreshCookie) {}
+    private record LoginResponse(String accessToken, Cookie refreshCookie) {
+    }
 }

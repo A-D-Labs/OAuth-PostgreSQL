@@ -109,6 +109,13 @@
         "description": "Key Vault name"
       }
     },
+    "redisName": {
+      "type": "string",
+      "defaultValue": "[concat('oauth-redis-', parameters('environment'), '-', uniqueString(resourceGroup().id))]",
+      "metadata": {
+        "description": "Name of the Redis Cache"
+      }
+    },
     "tags": {
       "type": "object",
       "defaultValue": {
@@ -151,6 +158,22 @@
   },
   "resources": [
     {
+      "type": "Microsoft.Cache/Redis",
+      "apiVersion": "2023-08-01",
+      "name": "[parameters('redisName')]",
+      "location": "[resourceGroup().location]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "sku": {
+          "name": "Basic",
+          "family": "C",
+          "capacity": 0
+        },
+        "enableNonSslPort": false,
+        "minimumTlsVersion": "1.2"
+      }
+    },
+    {
       "type": "Microsoft.Web/serverfarms",
       "apiVersion": "2020-12-01",
       "name": "[parameters('appServicePlanName')]",
@@ -175,7 +198,8 @@
       "kind": "app,linux,container",
       "dependsOn": [
         "[resourceId('Microsoft.Web/serverfarms', parameters('appServicePlanName'))]",
-        "[resourceId('Microsoft.Insights/components', parameters('appInsightsName'))]"
+        "[resourceId('Microsoft.Insights/components', parameters('appInsightsName'))]",
+        "[resourceId('Microsoft.Cache/Redis', parameters('redisName'))]"
       ],
       "properties": {
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('appServicePlanName'))]",
@@ -221,6 +245,22 @@
             {
               "name": "DB_PASSWORD",
               "value": "[parameters('mysqlAdminPassword')]"
+            },
+            {
+              "name": "REDIS_HOST",
+              "value": "[reference(resourceId('Microsoft.Cache/Redis', parameters('redisName'))).hostName]"
+            },
+            {
+              "name": "REDIS_PORT",
+              "value": "[string(reference(resourceId('Microsoft.Cache/Redis', parameters('redisName'))).sslPort)]"
+            },
+            {
+              "name": "REDIS_PASSWORD",
+              "value": "[listKeys(resourceId('Microsoft.Cache/Redis', parameters('redisName')), '2023-08-01').primaryKey]"
+            },
+            {
+              "name": "REDIS_SSL",
+              "value": "true"
             },
             {
               "name": "STORAGE_CONNECTION_STRING",
@@ -412,6 +452,10 @@
     "keyVaultUri": {
       "type": "string",
       "value": "[reference(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))).vaultUri]"
+    },
+    "redisHostName": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Cache/Redis', parameters('redisName'))).hostName]"
     }
   }
 }

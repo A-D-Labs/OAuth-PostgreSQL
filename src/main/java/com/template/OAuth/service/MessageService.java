@@ -3,9 +3,11 @@ package com.template.OAuth.service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 
 import java.util.Locale;
+import java.util.Objects;
 
 @Service
 public class MessageService {
@@ -23,9 +25,11 @@ public class MessageService {
      * @param code Message code from properties file
      * @return Localized message
      */
-    public String getMessage(String code) {
+    @NonNull
+    @SuppressWarnings("null")
+    public String getMessage(@NonNull String code) {
         Locale locale = LocaleContextHolder.getLocale();
-        return messageSource.getMessage(code, null, code, locale);
+        return Objects.requireNonNull(messageSource.getMessage(code, null, code, locale));
     }
 
     /**
@@ -35,9 +39,11 @@ public class MessageService {
      * @param args Parameters to substitute in the message
      * @return Localized message with parameters
      */
-    public String getMessageWithArgs(String code, Object[] args) {
+    @NonNull
+    @SuppressWarnings("null")
+    public String getMessageWithArgs(@NonNull String code, Object[] args) {
         Locale locale = LocaleContextHolder.getLocale();
-        return messageSource.getMessage(code, args, code, locale);
+        return Objects.requireNonNull(messageSource.getMessage(code, args, code, locale));
     }
 
     /**
@@ -47,7 +53,9 @@ public class MessageService {
      * @param locale Specific locale to use
      * @return Localized message
      */
-    public String getMessageForLocale(String code, Locale locale) {
-        return messageSource.getMessage(code, null, code, locale);
+    @NonNull
+    @SuppressWarnings("null")
+    public String getMessageForLocale(@NonNull String code, @NonNull Locale locale) {
+        return Objects.requireNonNull(messageSource.getMessage(code, null, code, locale));
     }
 }

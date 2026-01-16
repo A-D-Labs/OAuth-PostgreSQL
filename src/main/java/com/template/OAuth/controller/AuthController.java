@@ -45,13 +45,13 @@ public class AuthController {
 
     @Autowired
     public AuthController(JwtTokenProvider jwtTokenProvider,
-                          UserRepository userRepository,
-                          AuditService auditService,
-                          MetricsService metricsService,
-                          MessageService messageService,
-                          AuthService authService,
-                          RefreshTokenService refreshTokenService,
-                          AppProperties appProperties) {
+            UserRepository userRepository,
+            AuditService auditService,
+            MetricsService metricsService,
+            MessageService messageService,
+            AuthService authService,
+            RefreshTokenService refreshTokenService,
+            AppProperties appProperties) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.userRepository = userRepository;
         this.auditService = auditService;
@@ -62,19 +62,16 @@ public class AuthController {
         this.appProperties = appProperties;
     }
 
-    @Operation(summary = "Register a new user with email and password",
-            description = "Registers a new user account that requires email verification")
+    @Operation(summary = "Register a new user with email and password", description = "Registers a new user account that requires email verification")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Registration successful"),
-            @ApiResponse(responseCode = "400", description = "Invalid input data or email already in use",
-                    content = @Content)
+            @ApiResponse(responseCode = "400", description = "Invalid input data or email already in use", content = @Content)
     })
     @SecurityRequirements
     @PostMapping("/register")
     @Timed(value = "auth.register.time", description = "Time taken to register new user")
     public ResponseEntity<Map<String, String>> registerUser(
-            @Parameter(description = "User registration details", required = true)
-            @Valid @RequestBody EmailRegistrationRequest registrationRequest) {
+            @Parameter(description = "User registration details", required = true) @Valid @RequestBody EmailRegistrationRequest registrationRequest) {
 
         try {
             User user = authService.registerUser(registrationRequest);
@@ -91,12 +88,10 @@ public class AuthController {
         }
     }
 
-    @Operation(summary = "Verify email address",
-            description = "Verifies a user's email address using the token sent in the verification email")
+    @Operation(summary = "Verify email address", description = "Verifies a user's email address using the token sent in the verification email")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Email verified successfully"),
-            @ApiResponse(responseCode = "400", description = "Invalid or expired token",
-                    content = @Content)
+            @ApiResponse(responseCode = "400", description = "Invalid or expired token", content = @Content)
     })
     @SecurityRequirements
     @GetMapping("/verify-email")
@@ -105,29 +100,25 @@ public class AuthController {
             boolean ok = authService.verifyEmail(token);
             if (ok) {
                 String redirect = appProperties.getApplication().getBaseUrl() + "/login?verified=1";
-                return ResponseEntity.status(302).header("Location", redirect).build(); 
+                return ResponseEntity.status(302).header("Location", redirect).build();
             } else {
-                Map<String,String> body = Map.of("message", "Invalid or expired verification token");
+                Map<String, String> body = Map.of("message", "Invalid or expired verification token");
                 return ResponseEntity.badRequest().body(body);
             }
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }
-    
 
-    @Operation(summary = "Resend verification email",
-            description = "Resends the verification email for unverified accounts")
+    @Operation(summary = "Resend verification email", description = "Resends the verification email for unverified accounts")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Verification email sent successfully"),
-            @ApiResponse(responseCode = "400", description = "Invalid email or account already verified",
-                    content = @Content)
+            @ApiResponse(responseCode = "400", description = "Invalid email or account already verified", content = @Content)
     })
     @SecurityRequirements
     @PostMapping("/resend-verification")
     public ResponseEntity<Map<String, String>> resendVerificationEmail(
-            @Parameter(description = "Email address", required = true)
-            @RequestParam String email) {
+            @Parameter(description = "Email address", required = true) @RequestParam String email) {
 
         try {
             authService.resendVerificationEmail(email);
@@ -142,16 +133,14 @@ public class AuthController {
         }
     }
 
-    @Operation(summary = "Initiate password reset",
-            description = "Sends a password reset email to the specified email address")
+    @Operation(summary = "Initiate password reset", description = "Sends a password reset email to the specified email address")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Password reset email sent successfully")
     })
     @SecurityRequirements
     @PostMapping("/forgot-password")
     public ResponseEntity<Map<String, String>> forgotPassword(
-            @Parameter(description = "Password reset request", required = true)
-            @Valid @RequestBody PasswordResetRequest resetRequest) {
+            @Parameter(description = "Password reset request", required = true) @Valid @RequestBody PasswordResetRequest resetRequest) {
 
         authService.initiatePasswordReset(resetRequest.getEmail());
 
@@ -160,18 +149,15 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "Reset password",
-            description = "Resets the user's password using the token sent in the reset email")
+    @Operation(summary = "Reset password", description = "Resets the user's password using the token sent in the reset email")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Password reset successfully"),
-            @ApiResponse(responseCode = "400", description = "Invalid or expired token",
-                    content = @Content)
+            @ApiResponse(responseCode = "400", description = "Invalid or expired token", content = @Content)
     })
     @SecurityRequirements
     @PostMapping("/reset-password")
     public ResponseEntity<Map<String, String>> resetPassword(
-            @Parameter(description = "Password reset completion data", required = true)
-            @Valid @RequestBody PasswordResetCompletion resetCompletion) {
+            @Parameter(description = "Password reset completion data", required = true) @Valid @RequestBody PasswordResetCompletion resetCompletion) {
 
         try {
             boolean reset = authService.resetPassword(resetCompletion.getToken(), resetCompletion.getPassword());
@@ -191,20 +177,16 @@ public class AuthController {
         }
     }
 
-    @Operation(summary = "Login with email and password",
-            description = "Authenticates a user with email and password credentials")
+    @Operation(summary = "Login with email and password", description = "Authenticates a user with email and password credentials")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Authentication successful",
-                    content = @Content(schema = @Schema(implementation = AuthResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid credentials or unverified account",
-                    content = @Content)
+            @ApiResponse(responseCode = "200", description = "Authentication successful", content = @Content(schema = @Schema(implementation = AuthResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid credentials or unverified account", content = @Content)
     })
     @SecurityRequirements
     @PostMapping("/email-login")
     @Timed(value = "auth.email.login.time", description = "Time taken to perform email login")
     public ResponseEntity<AuthResponse> loginWithEmail(
-            @Parameter(description = "User login details", required = true)
-            @Valid @RequestBody EmailLoginRequest loginRequest,
+            @Parameter(description = "User login details", required = true) @Valid @RequestBody EmailLoginRequest loginRequest,
             HttpServletResponse response) {
 
         try {
@@ -217,62 +199,10 @@ public class AuthController {
         }
     }
 
-    @Operation(summary = "Authenticate user",
-            description = "Authenticates a user with provided credentials from OAuth providers")
+    @Operation(summary = "Get current user", description = "Retrieves the current authenticated user from the JWT token")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Authentication successful",
-                    content = @Content(schema = @Schema(implementation = AuthResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid credentials",
-                    content = @Content)
-    })
-    @SecurityRequirements
-    @PostMapping("/login")
-    @Auditable(type = AuditEventType.LOGIN_SUCCESS, description = "User login")
-    @Timed(value = "auth.login.time", description = "Time taken to perform login")
-    public ResponseEntity<AuthResponse> authenticateUser(
-            @Parameter(description = "User login details", required = true)
-            @RequestBody UserLoginRequest loginRequest,
-            HttpServletResponse response) {
-
-        Optional<User> userOpt = userRepository.findByEmail(loginRequest.getEmail());
-        User user;
-        if (userOpt.isPresent()) {
-            user = userOpt.get();
-        } else {
-            user = new User();
-            user.setEmail(loginRequest.getEmail());
-            user.setName(loginRequest.getName());
-            user.setPicture(loginRequest.getPicture());
-            user.setPrimaryProvider(com.template.OAuth.enums.AuthProvider.GOOGLE);
-            user.setEnabled(true);
-            userRepository.save(user);
-
-            metricsService.incrementRegistration();
-            auditService.logEvent(AuditEventType.USER_CREATED,
-                    messageService.getMessage("user.created"),
-                    "Email: " + user.getEmail());
-        }
-
-        String token = jwtTokenProvider.generateToken(user.getEmail());
-        long accessTtlSeconds = appProperties.getSecurity().getJwt().getExpiration() / 1000;
-
-        CookieUtil.addCookie(response, "jwt", token, "/", accessTtlSeconds, appProperties);
-
-        metricsService.incrementAuthSuccess();
-        auditService.logEvent(AuditEventType.LOGIN_SUCCESS,
-                messageService.getMessage("auth.login.success"),
-                "Email: " + user.getEmail());
-
-        return ResponseEntity.ok(new AuthResponse(token, messageService.getMessage("auth.login.success")));
-    }
-
-    @Operation(summary = "Get current user",
-            description = "Retrieves the current authenticated user from the JWT token")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "User found",
-                    content = @Content(schema = @Schema(implementation = User.class))),
-            @ApiResponse(responseCode = "401", description = "Unauthorized - Not authenticated",
-                    content = @Content)
+            @ApiResponse(responseCode = "200", description = "User found", content = @Content(schema = @Schema(implementation = User.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized - Not authenticated", content = @Content)
     })
     @GetMapping("/user")
     @Timed(value = "auth.get-user.time", description = "Time taken to get current user")
@@ -298,18 +228,17 @@ public class AuthController {
         return ResponseEntity.status(401).body(errorResponse);
     }
 
-    @Operation(summary = "Logout",
-            description = "Logs out the current user by clearing auth cookies")
+    @Operation(summary = "Logout", description = "Logs out the current user by clearing auth cookies")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Successfully logged out"),
-            @ApiResponse(responseCode = "401", description = "Unauthorized - Not authenticated",
-                    content = @Content)
+            @ApiResponse(responseCode = "401", description = "Unauthorized - Not authenticated", content = @Content)
     })
     @PostMapping("/logout")
     @Auditable(type = AuditEventType.LOGOUT, description = "User logout")
     @Timed(value = "auth.logout.time", description = "Time taken to logout")
     public ResponseEntity<Map<String, String>> logout(HttpServletRequest request, HttpServletResponse response) {
-        // Extract current user (if JWT present); logout should still clear cookies even if not
+        // Extract current user (if JWT present); logout should still clear cookies even
+        // if not
         String userEmail = "anonymous";
         Optional<String> tokenOpt = jwtTokenProvider.getTokenFromRequest(request);
         if (tokenOpt.isPresent()) {
@@ -337,8 +266,7 @@ public class AuthController {
         return ResponseEntity.ok(responseMap);
     }
 
-    @Operation(summary = "Get login URL",
-            description = "Returns the URL for OAuth2 authentication")
+    @Operation(summary = "Get login URL", description = "Returns the URL for OAuth2 authentication")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Login URL retrieved successfully")
     })

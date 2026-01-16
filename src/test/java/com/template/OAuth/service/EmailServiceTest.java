@@ -15,7 +15,6 @@ import org.thymeleaf.context.IContext;
 
 import java.util.Properties;
 
-
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
@@ -73,7 +72,8 @@ class EmailServiceTest {
         when(passwordReset.getExpirationHours()).thenReturn(1);
 
         when(mailSender.createMimeMessage()).thenReturn(new MimeMessage(Session.getInstance(new Properties())));
-        when(templateEngine.process(anyString(), any(IContext.class))).thenReturn("<html><body>Test Email Content</body></html>");
+        when(templateEngine.process(anyString(), any(IContext.class)))
+                .thenReturn("<html><body>Test Email Content</body></html>");
 
         when(messageService.getMessage("email.verification.subject")).thenReturn("Verify Your Email");
         when(messageService.getMessage("email.password.reset.subject")).thenReturn("Reset Your Password");
@@ -92,7 +92,7 @@ class EmailServiceTest {
 
         // Assert
         verify(mailSender, times(1)).send(any(MimeMessage.class));
-        verify(templateEngine, times(1)).process(eq("email-verification"), any(IContext.class));
+        verify(templateEngine, times(1)).process(eq("mail/email-verification"), any(IContext.class));
     }
 
     @Test
@@ -107,7 +107,7 @@ class EmailServiceTest {
 
         // Assert
         verify(mailSender, times(1)).send(any(MimeMessage.class));
-        verify(templateEngine, times(1)).process(eq("password-reset"), any(IContext.class));
+        verify(templateEngine, times(1)).process(eq("mail/password-reset"), any(IContext.class));
     }
 
     @Test
@@ -121,7 +121,7 @@ class EmailServiceTest {
 
         // Assert
         verify(mailSender, times(1)).send(any(MimeMessage.class));
-        verify(templateEngine, times(1)).process(eq("welcome-email"), any(IContext.class));
+        verify(templateEngine, times(1)).process(eq("mail/welcome-email"), any(IContext.class));
     }
 
     // Helper to use eq() with static imports

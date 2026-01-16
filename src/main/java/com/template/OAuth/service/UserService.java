@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -32,12 +33,14 @@ public class UserService {
 
     /**
      * Save or update a user from OAuth2 authentication
-     * @param oidcUser The OpenID Connect user info
+     * 
+     * @param oidcUser     The OpenID Connect user info
      * @param providerName The name of the identity provider
-     * @param providerId The user ID from the provider
+     * @param providerId   The user ID from the provider
      * @return The saved user entity
      */
     @Transactional
+    @SuppressWarnings("null")
     public User saveUser(OidcUser oidcUser, String providerName, String providerId) {
         String email = oidcUser.getEmail();
         Optional<User> existingUser = userRepository.findByEmail(email);
@@ -88,8 +91,9 @@ public class UserService {
 
     /**
      * Register a new user with email/password
-     * @param email User's email
-     * @param name User's display name
+     * 
+     * @param email           User's email
+     * @param name            User's display name
      * @param encodedPassword Encrypted password
      * @return The saved user entity
      */
@@ -105,7 +109,7 @@ public class UserService {
         user.setName(name);
         user.setPassword(encodedPassword);
         user.setPrimaryProvider(AuthProvider.LOCAL);
-        user.setEnabled(false);  // Will be enabled after email verification
+        user.setEnabled(false); // Will be enabled after email verification
 
         // Assign default USER role
         user.addRole(Role.USER);
@@ -120,13 +124,14 @@ public class UserService {
         user.enableNotification(NotificationType.EMAIL_SECURITY);
         user.enableNotification(NotificationType.IN_APP_GENERAL);
 
-        return userRepository.save(user);
+        return Objects.requireNonNull(userRepository.save(user));
     }
 
     /**
      * Update a user's profile information
-     * @param user The user to update
-     * @param name New name (or null to keep current)
+     * 
+     * @param user    The user to update
+     * @param name    New name (or null to keep current)
      * @param picture New profile picture URL (or null to keep current)
      * @return The updated user
      */
@@ -146,7 +151,7 @@ public class UserService {
 
         if (updated) {
             user.recordActivity();
-            return userRepository.save(user);
+            return Objects.requireNonNull(userRepository.save(user));
         }
 
         return user;
@@ -165,6 +170,7 @@ public class UserService {
      * Save a user entity to the database
      */
     @Transactional
+    @SuppressWarnings("null")
     public User saveUser(User user) {
         return userRepository.save(user);
     }
@@ -202,6 +208,7 @@ public class UserService {
 
     /**
      * Find all users in the system
+     * 
      * @return List of all users
      */
     @Transactional(readOnly = true)
@@ -211,6 +218,7 @@ public class UserService {
 
     /**
      * Find users with a specific role
+     * 
      * @param role The role to search for
      * @return List of users with the specified role
      */
@@ -225,6 +233,7 @@ public class UserService {
 
     /**
      * Check if a user exists with the given email
+     * 
      * @param email Email to check
      * @return true if user exists, false otherwise
      */
@@ -235,6 +244,7 @@ public class UserService {
 
     /**
      * Verify a user's email address by enabling their account
+     * 
      * @param user The user to verify
      * @return The updated user
      */
@@ -243,7 +253,7 @@ public class UserService {
         user.setEnabled(true);
         user.setVerificationToken(null);
         user.setVerificationTokenExpiry(null);
-        return userRepository.save(user);
+        return Objects.requireNonNull(userRepository.save(user));
     }
 
     /**
@@ -273,12 +283,14 @@ public class UserService {
             case SPOTIFY -> user.setSpotifyId(providerId);
             case APPLE -> user.setAppleId(providerId);
             case SOUNDCLOUD -> user.setSoundcloudId(providerId);
-            case LOCAL -> { /* no external provider ID to set for LOCAL */ }
+            case LOCAL -> {
+                /* no external provider ID to set for LOCAL */ }
         }
     }
 
     /**
      * Find a user by email
+     * 
      * @param email Email to search for
      * @return The user
      * @throws RuntimeException if user not found
@@ -290,7 +302,8 @@ public class UserService {
 
     /**
      * Find a user by provider ID
-     * @param provider The authentication provider
+     * 
+     * @param provider   The authentication provider
      * @param providerId The provider-specific user ID
      * @return Optional containing the user if found
      */
@@ -310,35 +323,38 @@ public class UserService {
 
     /**
      * Assign a role to a user
+     * 
      * @param email User's email
-     * @param role Role to assign
+     * @param role  Role to assign
      * @return Updated user
      */
     @Transactional
     public User assignRole(String email, Role role) {
         User user = findUserByEmail(email);
         user.addRole(role);
-        return userRepository.save(user);
+        return Objects.requireNonNull(userRepository.save(user));
     }
 
     /**
      * Remove a role from a user
+     * 
      * @param email User's email
-     * @param role Role to remove
+     * @param role  Role to remove
      * @return Updated user
      */
     @Transactional
     public User removeRole(String email, Role role) {
         User user = findUserByEmail(email);
         user.getRoles().remove(role);
-        return userRepository.save(user);
+        return Objects.requireNonNull(userRepository.save(user));
     }
 
     /**
      * Change a user's notification preferences
-     * @param user The user
+     * 
+     * @param user             The user
      * @param notificationType The notification type
-     * @param enabled Whether to enable or disable
+     * @param enabled          Whether to enable or disable
      * @return Updated user
      */
     @Transactional
@@ -348,12 +364,13 @@ public class UserService {
         } else {
             user.disableNotification(notificationType);
         }
-        return userRepository.save(user);
+        return Objects.requireNonNull(userRepository.save(user));
     }
 
     /**
      * Update user's password
-     * @param user The user
+     * 
+     * @param user            The user
      * @param encodedPassword New password (already encrypted)
      * @return Updated user
      */
@@ -361,6 +378,6 @@ public class UserService {
     public User updatePassword(User user, String encodedPassword) {
         user.setPassword(encodedPassword);
         user.recordActivity();
-        return userRepository.save(user);
+        return Objects.requireNonNull(userRepository.save(user));
     }
 }

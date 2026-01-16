@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.LocaleResolver;
+import org.springframework.lang.NonNull;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -34,17 +35,15 @@ public class LanguageController {
         this.userService = userService;
     }
 
-    @Operation(summary = "Change language",
-            description = "Changes the user's language preference and updates their profile")
+    @Operation(summary = "Change language", description = "Changes the user's language preference and updates their profile")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Language changed successfully"),
             @ApiResponse(responseCode = "400", description = "Invalid language code")
     })
     @PostMapping("/change")
     public ResponseEntity<Map<String, String>> changeLanguage(
-            @Parameter(description = "Language code (e.g., en, fr, es, de)", required = true)
-            @RequestParam String lang,
-            HttpServletRequest request,
+            @Parameter(description = "Language code (e.g., en, fr, es, de)", required = true) @RequestParam String lang,
+            @NonNull HttpServletRequest request,
             HttpServletResponse response) {
 
         // Validate language code
@@ -79,8 +78,7 @@ public class LanguageController {
         return ResponseEntity.ok(result);
     }
 
-    @Operation(summary = "Get available languages",
-            description = "Retrieves list of available languages")
+    @Operation(summary = "Get available languages", description = "Retrieves list of available languages")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Languages retrieved successfully")
     })
@@ -97,13 +95,12 @@ public class LanguageController {
         return ResponseEntity.ok(languages);
     }
 
-    @Operation(summary = "Get current language",
-            description = "Retrieves the user's current language")
+    @Operation(summary = "Get current language", description = "Retrieves the user's current language")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Current language retrieved successfully")
     })
     @GetMapping("/current")
-    public ResponseEntity<Map<String, String>> getCurrentLanguage(HttpServletRequest request) {
+    public ResponseEntity<Map<String, String>> getCurrentLanguage(@NonNull HttpServletRequest request) {
         // Get the current locale
         Locale currentLocale = localeResolver.resolveLocale(request);
 

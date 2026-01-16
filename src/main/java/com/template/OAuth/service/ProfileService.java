@@ -72,22 +72,28 @@ public class ProfileService {
             }
         }
 
-        if (profileUpdateDto.getLocation() != null && !profileUpdateDto.getLocation().equals(currentUser.getLocation())) {
+        if (profileUpdateDto.getLocation() != null
+                && !profileUpdateDto.getLocation().equals(currentUser.getLocation())) {
             currentUser.addUpdateHistory("location", currentUser.getLocation(), profileUpdateDto.getLocation());
             currentUser.setLocation(profileUpdateDto.getLocation());
         }
 
-        if (profileUpdateDto.getPhoneNumber() != null && !profileUpdateDto.getPhoneNumber().equals(currentUser.getPhoneNumber())) {
-            currentUser.addUpdateHistory("phoneNumber", currentUser.getPhoneNumber(), profileUpdateDto.getPhoneNumber());
+        if (profileUpdateDto.getPhoneNumber() != null
+                && !profileUpdateDto.getPhoneNumber().equals(currentUser.getPhoneNumber())) {
+            currentUser.addUpdateHistory("phoneNumber", currentUser.getPhoneNumber(),
+                    profileUpdateDto.getPhoneNumber());
             currentUser.setPhoneNumber(profileUpdateDto.getPhoneNumber());
         }
 
-        if (profileUpdateDto.getAlternativeEmail() != null && !profileUpdateDto.getAlternativeEmail().equals(currentUser.getAlternativeEmail())) {
-            currentUser.addUpdateHistory("alternativeEmail", currentUser.getAlternativeEmail(), profileUpdateDto.getAlternativeEmail());
+        if (profileUpdateDto.getAlternativeEmail() != null
+                && !profileUpdateDto.getAlternativeEmail().equals(currentUser.getAlternativeEmail())) {
+            currentUser.addUpdateHistory("alternativeEmail", currentUser.getAlternativeEmail(),
+                    profileUpdateDto.getAlternativeEmail());
             currentUser.setAlternativeEmail(profileUpdateDto.getAlternativeEmail());
         }
 
-        if (profileUpdateDto.getThemePreference() != null && !profileUpdateDto.getThemePreference().equals(currentUser.getThemePreference())) {
+        if (profileUpdateDto.getThemePreference() != null
+                && !profileUpdateDto.getThemePreference().equals(currentUser.getThemePreference())) {
             currentUser.addUpdateHistory("themePreference",
                     currentUser.getThemePreference() != null ? currentUser.getThemePreference().name() : null,
                     profileUpdateDto.getThemePreference().name());
@@ -106,7 +112,7 @@ public class ProfileService {
 
             // Also update the locale for the current session
             Locale newLocale = Locale.forLanguageTag(profileUpdateDto.getLanguagePreference());
-            localeResolver.setLocale(request, response, newLocale);
+            localeResolver.setLocale(Objects.requireNonNull(request), response, newLocale);
         }
 
         // Record user activity
@@ -120,8 +126,9 @@ public class ProfileService {
         User currentUser = userService.getCurrentUser();
 
         if (preferencesDto.getEnabledNotifications() != null) {
-            String oldPreferences = currentUser.getEnabledNotifications() != null ?
-                    currentUser.getEnabledNotifications().toString() : "[]";
+            String oldPreferences = currentUser.getEnabledNotifications() != null
+                    ? currentUser.getEnabledNotifications().toString()
+                    : "[]";
             String newPreferences = preferencesDto.getEnabledNotifications().toString();
 
             currentUser.addUpdateHistory("enabledNotifications", oldPreferences, newPreferences);
@@ -173,7 +180,8 @@ public class ProfileService {
         // Record user activity
         userService.recordUserActivity(currentUser);
 
-        List<ProfileUpdateHistory> history = profileUpdateHistoryRepository.findByUserOrderByUpdateDateDesc(currentUser);
+        List<ProfileUpdateHistory> history = profileUpdateHistoryRepository
+                .findByUserOrderByUpdateDateDesc(currentUser);
 
         return history.stream()
                 .map(this::convertToHistoryDto)

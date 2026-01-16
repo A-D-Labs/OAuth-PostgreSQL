@@ -34,7 +34,7 @@ public class SecurityConfig {
     public SecurityConfig(
             JwtAuthenticationFilter jwtAuthenticationFilter,
             OAuth2SuccessHandler oAuth2SuccessHandler,
-            OAuth2FailureHandler oAuth2FailureHandler,    // <-- NEW
+            OAuth2FailureHandler oAuth2FailureHandler, // <-- NEW
             CorsConfigurationSource corsConfigurationSource,
             CustomUserDetailsService userDetailsService) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
@@ -84,51 +84,53 @@ public class SecurityConfig {
         requestHandler.setCsrfRequestAttributeName(null);
 
         http
-            // CORS
-            .cors(cors -> cors.configurationSource(corsConfigurationSource))
+                // CORS
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
 
-            // CSRF (enabled globally, ignored for auth/OAuth/refresh)
-            .csrf(csrf -> csrf
-                .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                .csrfTokenRequestHandler(requestHandler)
-                .ignoringRequestMatchers(
-                    "/auth/**",
-                    "/oauth2/**",
-                    "/login/oauth2/**",
-                    "/refresh-token"
+                // CSRF (enabled globally, ignored for auth/OAuth/refresh)
+                .csrf(csrf -> csrf
+                        .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                        .csrfTokenRequestHandler(requestHandler)
+                        .ignoringRequestMatchers(
+                                "/auth/**",
+                                "/oauth2/**",
+                                "/login/oauth2/**",
+                                "/refresh-token"))
+
+                // 401 for unauthenticated API access
+                .exceptionHandling(e -> e
+                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+
+                // Authorization rules
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(publicEndpoints).permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/moderator/**").hasAnyRole("ADMIN", "MODERATOR")
+                        .requestMatchers("/api/premium/**").hasAnyRole("ADMIN", "PREMIUM")
+                        .requestMatchers("/api/user/**").authenticated()
+                        .requestMatchers("/management/**").hasRole("ADMIN")
+                        .requestMatchers("/management/**").hasRole("ADMIN")
+                        .anyRequest().authenticated())
+
+                // Content Security Policy (CSP)
+                .headers(headers -> headers
+                        .contentSecurityPolicy(csp -> csp
+                                .policyDirectives(
+                                        "default-src 'self'; script-src 'self' 'unsafe-inline'; object-src 'none'; frame-ancestors 'none';")))
+
+                // Stateless
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+                // OAuth2 login: success + failure handlers
+                .oauth2Login(oauth2 -> oauth2
+                        .successHandler(oAuth2SuccessHandler)
+                        .failureHandler(oAuth2FailureHandler) // <-- use the handler instead of failureUrl
                 )
-            )
 
-            // 401 for unauthenticated API access
-            .exceptionHandling(e -> e
-                .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
-            )
-
-            // Authorization rules
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers(publicEndpoints).permitAll()
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                .requestMatchers("/api/moderator/**").hasAnyRole("ADMIN", "MODERATOR")
-                .requestMatchers("/api/premium/**").hasAnyRole("ADMIN", "PREMIUM")
-                .requestMatchers("/api/user/**").authenticated()
-                .requestMatchers("/management/**").hasRole("ADMIN")
-                .anyRequest().authenticated()
-            )
-
-            // Stateless
-            .sessionManagement(session -> session
-                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            )
-
-            // OAuth2 login: success + failure handlers
-            .oauth2Login(oauth2 -> oauth2
-                .successHandler(oAuth2SuccessHandler)
-                .failureHandler(oAuth2FailureHandler) // <-- use the handler instead of failureUrl
-            )
-
-            // Add JWT filter
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                // Add JWT filter
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         // If you ever enable form login, wire your AuthenticationFailureHandler here:
         // .formLogin(form -> form.failureHandler(authenticationFailureHandler))

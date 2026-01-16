@@ -20,6 +20,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.LocaleResolver;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.Locale;
 
 @Component
@@ -44,12 +45,12 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     private final LocaleResolver localeResolver;
 
     public OAuth2SuccessHandler(UserService userService,
-                                JwtTokenProvider jwtTokenProvider,
-                                RefreshTokenService refreshTokenService,
-                                AppProperties appProperties,
-                                AuditService auditService,
-                                MessageService messageService,
-                                LocaleResolver localeResolver) {
+            JwtTokenProvider jwtTokenProvider,
+            RefreshTokenService refreshTokenService,
+            AppProperties appProperties,
+            AuditService auditService,
+            MessageService messageService,
+            LocaleResolver localeResolver) {
         this.userService = userService;
         this.jwtTokenProvider = jwtTokenProvider;
         this.refreshTokenService = refreshTokenService;
@@ -71,7 +72,8 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
         if (loginSuccessRedirectUrl == null || loginSuccessRedirectUrl.trim().isEmpty()) {
             loginSuccessRedirectUrl = DEFAULT_SUCCESS_PATH;
-            logger.warn("Login success redirect URL is not set in configuration, using default: {}", loginSuccessRedirectUrl);
+            logger.warn("Login success redirect URL is not set in configuration, using default: {}",
+                    loginSuccessRedirectUrl);
         }
 
         // Properly format the default target URL
@@ -94,7 +96,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
-                                        Authentication authentication) throws IOException {
+            Authentication authentication) throws IOException {
         if (authentication.getPrincipal() instanceof OidcUser) {
             OidcUser oidcUser = (OidcUser) authentication.getPrincipal();
 
@@ -105,7 +107,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 // Set the user's preferred language as the locale if it exists
                 if (user.getLanguagePreference() != null && !user.getLanguagePreference().isEmpty()) {
                     Locale locale = Locale.forLanguageTag(user.getLanguagePreference());
-                    localeResolver.setLocale(request, response, locale);
+                    localeResolver.setLocale(Objects.requireNonNull(request), Objects.requireNonNull(response), locale);
                 }
 
                 // Generate JWT token
@@ -123,20 +125,18 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                         response,
                         "jwt",
                         token,
-                        "/",                    // accessible across the API
+                        "/", // accessible across the API
                         accessTtlSeconds,
-                        appProperties
-                );
+                        appProperties);
 
                 // Refresh token cookie (optionally scope to refresh endpoint)
                 CookieUtil.addCookie(
                         response,
                         "refresh_token",
                         refreshToken.getToken(),
-                        "/refresh-token",       // tighter path scope for refresh flow
+                        "/refresh-token", // tighter path scope for refresh flow
                         refreshTtlSeconds,
-                        appProperties
-                );
+                        appProperties);
                 // ----------------------------------------------------------
 
                 // Audit successful OAuth login

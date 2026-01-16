@@ -95,6 +95,7 @@ if ($deployment.ProvisioningState -eq "Succeeded") {
     Write-Host "MySQL Server FQDN: $($deployment.Outputs.mysqlServerFqdn.Value)"
     Write-Host "Container Registry URL: $($deployment.Outputs.containerRegistryUrl.Value)"
     Write-Host "Key Vault URI: $($deployment.Outputs.keyVaultUri.Value)"
+    Write-Host "Redis Host: $($deployment.Outputs.redisHostName.Value)"
 
     # For dev environment, output additional information
     if ($Environment -eq "dev") {

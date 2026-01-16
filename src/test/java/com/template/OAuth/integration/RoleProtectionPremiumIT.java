@@ -26,20 +26,28 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import com.template.OAuth.BaseIntegrationTest;
+import org.springframework.transaction.annotation.Transactional;
+
 @SpringBootTest
 @AutoConfigureMockMvc
+@Transactional
 @ActiveProfiles("test")
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
-class RoleProtectionPremiumIT {
+class RoleProtectionPremiumIT extends BaseIntegrationTest {
 
     private static final String PASSWORD = "OrigPassw0rd!";
 
-    @Autowired private MockMvc mockMvc;
-    @Autowired private ObjectMapper objectMapper;
-    @Autowired private UserRepository userRepository;
-    @Autowired private UserService userService;
+    @Autowired
+    private MockMvc mockMvc;
+    @Autowired
+    private ObjectMapper objectMapper;
+    @Autowired
+    private UserRepository userRepository;
+    @Autowired
+    private UserService userService;
 
-    @MockBean private JavaMailSender javaMailSender;
+    @MockBean
+    private JavaMailSender javaMailSender;
 
     @Test
     void premium_content_requires_premium_role() throws Exception {
@@ -49,24 +57,26 @@ class RoleProtectionPremiumIT {
         Cookie userJwt = loginAndGetJwt(email, PASSWORD);
 
         mockMvc.perform(get("/api/admin/premium/content").cookie(userJwt))
-               .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden());
 
         userService.assignRole(email, Role.PREMIUM);
 
         Cookie premiumJwt = loginAndGetJwt(email, PASSWORD);
 
         mockMvc.perform(get("/api/admin/premium/content").cookie(premiumJwt))
-               .andExpect(status().isOk());
+                .andExpect(status().isOk());
     }
 
     // helpers
-    private String uniqueEmail(String prefix) { return prefix + "+" + UUID.randomUUID() + "@example.com"; }
+    private String uniqueEmail(String prefix) {
+        return prefix + "+" + UUID.randomUUID() + "@example.com";
+    }
 
     private void registerAndVerify(String email, String name) throws Exception {
         mockMvc.perform(post("/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("name", name, "email", email, "password", PASSWORD))))
-               .andExpect(status().isOk());
+                .andExpect(status().isOk());
 
         Optional<User> u = userRepository.findByEmail(email);
         assertThat(u).isPresent();
@@ -74,20 +84,22 @@ class RoleProtectionPremiumIT {
         assertThat(token).isNotBlank();
 
         mockMvc.perform(get("/auth/verify-email").param("token", token))
-               .andExpect(status().is3xxRedirection());
+                .andExpect(status().is3xxRedirection());
     }
 
     private Cookie loginAndGetJwt(String email, String password) throws Exception {
         MvcResult res = mockMvc.perform(post("/auth/email-login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("email", email, "password", password))))
-               .andExpect(status().isOk())
-               .andReturn();
+                .andExpect(status().isOk())
+                .andReturn();
         Cookie jwt = res.getResponse().getCookie("jwt");
         assertThat(jwt).isNotNull();
         assertThat(jwt.getValue()).isNotBlank();
         return jwt;
     }
 
-    private String json(Object o) throws Exception { return objectMapper.writeValueAsString(o); }
+    private String json(Object o) throws Exception {
+        return objectMapper.writeValueAsString(o);
+    }
 }

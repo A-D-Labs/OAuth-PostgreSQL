@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Configuration;
 
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
+import java.util.Objects;
 
 @Configuration
 @EnableCaching
@@ -26,9 +27,10 @@ public class RateLimitingConfig {
     @Bean
     public CacheManager cacheManager() {
         CaffeineCacheManager cacheManager = new CaffeineCacheManager("ipCache", "userCache", "endpointCache");
-        cacheManager.setCaffeine(Caffeine.newBuilder()
+        cacheManager.setCaffeine(Objects.requireNonNull(Caffeine.newBuilder()
                 .expireAfterWrite(1, TimeUnit.HOURS)
-                .maximumSize(10000));
+                .maximumSize(10000)
+                .recordStats()));
         return cacheManager;
     }
 

@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.Objects;
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -43,10 +44,12 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     private static final Pattern AUTH_ENDPOINTS = Pattern.compile("^/(auth|oauth2|login|refresh-token)/.*$");
 
     // Pattern for sensitive operations (admin, password changes, etc.)
-    private static final Pattern SENSITIVE_ENDPOINTS = Pattern.compile("^/(api/admin|api/moderator|api/user/password)/.*$");
+    private static final Pattern SENSITIVE_ENDPOINTS = Pattern
+            .compile("^/(api/admin|api/moderator|api/user/password)/.*$");
 
     // Pattern for static resources to skip rate limiting
-    private static final Pattern STATIC_RESOURCES = Pattern.compile("^/(swagger-ui|v3/api-docs|favicon.ico|error|css|js|images)/.*$");
+    private static final Pattern STATIC_RESOURCES = Pattern
+            .compile("^/(swagger-ui|v3/api-docs|favicon.ico|error|css|js|images)/.*$");
 
     public RateLimitingFilter(
             RateLimitService rateLimitService,
@@ -80,8 +83,8 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
-                                    @NonNull HttpServletResponse response,
-                                    @NonNull FilterChain filterChain)
+            @NonNull HttpServletResponse response,
+            @NonNull FilterChain filterChain)
             throws ServletException, IOException {
 
         // If we're in test environment, skip rate limiting
@@ -90,9 +93,10 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             return;
         }
 
-        String path = request.getRequestURI();
+        String uri = request.getRequestURI();
+        String path = uri != null ? uri : "";
         String method = request.getMethod();
-        String clientIp = getClientIP(request);
+        String clientIp = Objects.requireNonNull(getClientIP(request));
         String requestId = generateRequestId();
 
         // Add request ID to response headers for tracking
@@ -110,7 +114,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 
         // Apply different rate limits based on endpoint type
         if (AUTH_ENDPOINTS.matcher(path).matches()) {
-            bucket = rateLimitService.resolveBucketForAuthRequest(clientIp);
+            bucket = rateLimitService.resolveBucketForAuthRequest(Objects.requireNonNull(clientIp));
             remainingTokens = rateLimitService.checkRateLimit(bucket, 1);
             bucketType = "auth";
 
@@ -118,9 +122,8 @@ public class RateLimitingFilter extends OncePerRequestFilter {
                 handleRateLimitExceeded(response, requestId, clientIp, path, bucketType);
                 return;
             }
-        }
-        else if (SENSITIVE_ENDPOINTS.matcher(path).matches()) {
-            bucket = rateLimitService.resolveBucketForSensitiveOperation(clientIp);
+        } else if (SENSITIVE_ENDPOINTS.matcher(path).matches()) {
+            bucket = rateLimitService.resolveBucketForSensitiveOperation(Objects.requireNonNull(clientIp));
             remainingTokens = rateLimitService.checkRateLimit(bucket, 1);
             bucketType = "sensitive";
 
@@ -128,10 +131,9 @@ public class RateLimitingFilter extends OncePerRequestFilter {
                 handleRateLimitExceeded(response, requestId, clientIp, path, bucketType);
                 return;
             }
-        }
-        else {
+        } else {
             // Default API rate limiting
-            bucket = rateLimitService.resolveBucketForEndpoint(path);
+            bucket = rateLimitService.resolveBucketForEndpoint(Objects.requireNonNull(path));
             remainingTokens = rateLimitService.checkRateLimit(bucket, 1);
             bucketType = "standard";
 
@@ -220,6 +222,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
     }
 
+    @NonNull
     private String getClientIP(HttpServletRequest request) {
         String xfHeader = request.getHeader("X-Forwarded-For");
         if (xfHeader != null) {
@@ -229,7 +232,8 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         if (realIp != null) {
             return realIp;
         }
-        return request.getRemoteAddr();
+        String remoteAddr = request.getRemoteAddr();
+        return remoteAddr != null ? remoteAddr : "unknown";
     }
 
     private String generateRequestId() {

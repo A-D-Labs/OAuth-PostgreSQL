@@ -37,7 +37,7 @@ public class InternationalizationConfig implements WebMvcConfigurer {
         // Spring 6+ recommends using the constructor instead of setCookieName()
         CookieLocaleResolver resolver = new CookieLocaleResolver("locale");
         resolver.setDefaultLocale(Locale.US); // Default to US English
-        resolver.setCookieMaxAge(Duration.ofHours(1)); // Cookie expires after 1 hour
+        resolver.setCookieMaxAge(java.util.Objects.requireNonNull(Duration.ofHours(1))); // Cookie expires after 1 hour
         resolver.setCookiePath("/");
         return resolver;
     }
@@ -57,6 +57,6 @@ public class InternationalizationConfig implements WebMvcConfigurer {
      */
     @Override
     public void addInterceptors(@NonNull InterceptorRegistry registry) {
-        registry.addInterceptor(localeChangeInterceptor());
+        registry.addInterceptor(java.util.Objects.requireNonNull(localeChangeInterceptor()));
     }
 }

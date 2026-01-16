@@ -17,6 +17,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.Instant;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -28,7 +29,8 @@ public class AuditService {
     private AuditEventRepository auditEventRepository;
 
     /**
-     * Log an audit event asynchronously to prevent impacting application performance
+     * Log an audit event asynchronously to prevent impacting application
+     * performance
      */
     @Async
     public void logEvent(AuditEvent auditEvent) {
@@ -42,7 +44,7 @@ public class AuditService {
                 auditEvent.setSource(request.getRequestURI());
             }
 
-            auditEventRepository.save(auditEvent);
+            auditEventRepository.save(Objects.requireNonNull(auditEvent));
             logger.debug("Audit event logged: {}", auditEvent);
         } catch (Exception e) {
             // Even if audit logging fails, don't disrupt the application flow
@@ -81,7 +83,8 @@ public class AuditService {
     }
 
     /**
-     * Get the current authenticated user principal or "anonymous" if not authenticated
+     * Get the current authenticated user principal or "anonymous" if not
+     * authenticated
      */
     private String getCurrentUserPrincipal() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -96,8 +99,7 @@ public class AuditService {
      * Get the current HttpServletRequest if available
      */
     private Optional<HttpServletRequest> getCurrentRequest() {
-        ServletRequestAttributes attributes =
-                (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
 
         if (attributes != null) {
             return Optional.of(attributes.getRequest());
@@ -131,22 +133,23 @@ public class AuditService {
     // Methods for retrieving audit events
 
     public Page<AuditEvent> findAllEvents(Pageable pageable) {
-        return auditEventRepository.findAll(pageable);
+        return auditEventRepository.findAll(Objects.requireNonNull(pageable));
     }
 
     public Page<AuditEvent> findEventsByPrincipal(String principal, Pageable pageable) {
-        return auditEventRepository.findByPrincipalOrderByTimestampDesc(principal, pageable);
+        return auditEventRepository.findByPrincipalOrderByTimestampDesc(principal, Objects.requireNonNull(pageable));
     }
 
     public Page<AuditEvent> findEventsByType(AuditEventType type, Pageable pageable) {
-        return auditEventRepository.findByTypeOrderByTimestampDesc(type, pageable);
+        return auditEventRepository.findByTypeOrderByTimestampDesc(type, Objects.requireNonNull(pageable));
     }
 
     public Page<AuditEvent> findEventsByTimeRange(Instant start, Instant end, Pageable pageable) {
-        return auditEventRepository.findByTimestampBetweenOrderByTimestampDesc(start, end, pageable);
+        return auditEventRepository.findByTimestampBetweenOrderByTimestampDesc(start, end,
+                Objects.requireNonNull(pageable));
     }
 
     public Page<AuditEvent> searchEvents(String searchTerm, Pageable pageable) {
-        return auditEventRepository.searchAuditEvents(searchTerm, pageable);
+        return auditEventRepository.searchAuditEvents(searchTerm, Objects.requireNonNull(pageable));
     }
 }

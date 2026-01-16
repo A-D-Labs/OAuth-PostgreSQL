@@ -53,6 +53,20 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7.2-alpine
+    container_name: oauth-redis-${SPRING_PROFILES_ACTIVE:-dev}
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    networks:
+      - oauth-network-${SPRING_PROFILES_ACTIVE:-dev}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
 networks:
   oauth-network-${SPRING_PROFILES_ACTIVE:-dev}:
     driver: bridge

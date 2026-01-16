@@ -186,12 +186,11 @@ class AuthServiceTest {
 
         when(userRepository.findByVerificationToken(anyString())).thenReturn(Optional.of(testUser));
 
-        // Act & Assert
-        Exception exception = assertThrows(RuntimeException.class, () -> {
-            authService.verifyEmail("expired-token");
-        });
+        // Act
+        boolean result = authService.verifyEmail("expired-token");
 
-        assertEquals("Verification token has expired", exception.getMessage());
+        // Assert
+        assertFalse(result, "Should return false for expired token");
         assertFalse(testUser.isEnabled());
         verify(userRepository, never()).save(any(User.class));
     }
@@ -204,13 +203,11 @@ class AuthServiceTest {
         loginRequest.setPassword("Password123!");
 
         // Create a mock UserPrincipal for the authentication
-        com.template.OAuth.security.UserPrincipal userPrincipal =
-                new com.template.OAuth.security.UserPrincipal(
-                        "test@example.com",
-                        "encodedPassword",
-                        true,
-                        Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
-                );
+        com.template.OAuth.security.UserPrincipal userPrincipal = new com.template.OAuth.security.UserPrincipal(
+                "test@example.com",
+                "encodedPassword",
+                true,
+                Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
 
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
                 .thenReturn(authentication);
@@ -227,7 +224,9 @@ class AuthServiceTest {
         verify(authenticationManager, times(1)).authenticate(any(UsernamePasswordAuthenticationToken.class));
         verify(jwtTokenProvider, times(1)).generateToken(anyString());
         verify(refreshTokenService, times(1)).generateRefreshToken(any(User.class));
-        verify(servletResponse, times(2)).addCookie(any(Cookie.class));
+
+        // Verify headers are added instead of addCookie
+        verify(servletResponse, atLeast(1)).addHeader(eq("Set-Cookie"), anyString());
 
         // Verify the user activity was recorded
         verify(userRepository, times(1)).save(any(User.class));

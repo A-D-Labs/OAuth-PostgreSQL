@@ -62,8 +62,8 @@ class AuthControllerTest {
 
         // Act & Assert
         mockMvc.perform(post("/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(registrationRequest)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(registrationRequest)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("test@example.com"));
     }
@@ -75,9 +75,9 @@ class AuthControllerTest {
 
         // Act & Assert
         mockMvc.perform(get("/auth/verify-email")
-                        .param("token", "valid-token"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").exists());
+                .param("token", "valid-token"))
+                .andExpect(status().isFound())
+                .andExpect(header().exists("Location"));
     }
 
     @Test
@@ -87,7 +87,7 @@ class AuthControllerTest {
 
         // Act & Assert
         mockMvc.perform(get("/auth/verify-email")
-                        .param("token", "invalid-token"))
+                .param("token", "invalid-token"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").exists());
     }
@@ -102,8 +102,8 @@ class AuthControllerTest {
 
         // Act & Assert
         mockMvc.perform(post("/auth/forgot-password")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(resetRequest)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(resetRequest)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").exists());
 

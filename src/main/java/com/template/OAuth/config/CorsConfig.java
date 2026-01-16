@@ -7,7 +7,9 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.time.Duration;
+
 import java.util.List;
+import java.util.Objects;
 
 @Configuration
 public class CorsConfig {
@@ -25,7 +27,7 @@ public class CorsConfig {
         cfg.addAllowedHeader(CorsConfiguration.ALL);
 
         // Cache preflight responses
-        cfg.setMaxAge(Duration.ofHours(1));
+        cfg.setMaxAge(Objects.requireNonNull(Duration.ofHours(1)));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", cfg);

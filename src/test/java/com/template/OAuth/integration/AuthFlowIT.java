@@ -38,18 +38,27 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *  - Email sending is mocked to avoid SMTP attempts during tests.
  *  - Uses H2 via application-test.yaml.
  */
+import com.template.OAuth.BaseIntegrationTest;
+import org.springframework.transaction.annotation.Transactional;
+
 @SpringBootTest
 @AutoConfigureMockMvc
+@Transactional
 @ActiveProfiles("test")
-class AuthFlowIT {
+class AuthFlowIT extends BaseIntegrationTest {
 
-    @Autowired private MockMvc mockMvc;
-    @Autowired private ObjectMapper objectMapper;
-    @Autowired private UserRepository userRepository;
-    @Autowired private RefreshTokenRepository refreshTokenRepository;
+    @Autowired
+    private MockMvc mockMvc;
+    @Autowired
+    private ObjectMapper objectMapper;
+    @Autowired
+    private UserRepository userRepository;
+    @Autowired
+    private RefreshTokenRepository refreshTokenRepository;
 
     // Mock async emails (verification/welcome) to avoid SMTP in tests
-    @MockitoBean private EmailService emailService;
+    @MockitoBean
+    private EmailService emailService;
 
     private String email;
     private String password;
@@ -57,9 +66,6 @@ class AuthFlowIT {
 
     @BeforeEach
     void cleanAndArrange() {
-        refreshTokenRepository.deleteAll();
-        userRepository.deleteAll();
-
         email = "flow_it@example.com";
         password = "Password123!";
         name = "Flow IT";
@@ -74,8 +80,8 @@ class AuthFlowIT {
         reg.setPassword(password);
 
         mockMvc.perform(post("/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(reg)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reg)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").exists())
                 .andExpect(jsonPath("$.email").value(email));
@@ -103,8 +109,8 @@ class AuthFlowIT {
         login.setPassword(password);
 
         MvcResult loginResult = mockMvc.perform(post("/auth/email-login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(login)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(login)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Login successful"))
                 .andExpect(cookie().exists("jwt"))
@@ -130,7 +136,7 @@ class AuthFlowIT {
 
         // === 4) REFRESH -> rotation + new cookies ===
         MvcResult refreshResult = mockMvc.perform(post("/refresh-token")
-                        .cookie(new Cookie("refresh_token", refreshCookie.getValue())))
+                .cookie(new Cookie("refresh_token", refreshCookie.getValue())))
                 .andExpect(status().isOk())
                 .andExpect(cookie().exists("jwt"))
                 .andExpect(cookie().exists("refresh_token"))
@@ -157,7 +163,8 @@ class AuthFlowIT {
     // Helper: find a cookie by name in MockMvc response
     private static Cookie extractCookie(MvcResult result, String name) {
         for (Cookie c : result.getResponse().getCookies()) {
-            if (name.equals(c.getName())) return c;
+            if (name.equals(c.getName()))
+                return c;
         }
         return null;
     }
