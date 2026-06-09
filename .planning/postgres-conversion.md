@@ -81,6 +81,17 @@ All entity enums use `@Enumerated(EnumType.STRING)`, so enum columns become **VA
 9. **Docs** — README DB sections.
 10. **Final gate** — all 22 test classes green on Postgres; `./mvnw clean verify` passes.
 
+## Architecture pass (stage 4)
+
+**Outcome: no refactor precedes the build.** The conversion is a value-swap on a conventional layered Spring Boot app, not a structural change; refactoring now would contradict the faithful-conversion mission (ADR 0001) and add risk to a change whose whole value is fidelity. Assessed the three touched module-areas:
+
+- **Migration/schema** (`V1__init_schema.sql`) — single raw-SQL baseline; appropriate for a template. No change.
+- **Test harness** (`BaseIntegrationTest`) — clean single seam; swap one adapter (MySQL→Postgres container). No change.
+- **Datasource config** — URL/driver/dialect duplicated across `application.yaml` + 4 profiles (mild shallow seam). _Deferred deepening:_ centralize datasource defaults in the base YAML so profiles override only deltas. Not done now — restructuring config mid-conversion risks behaviour drift and muddies the baseline→Postgres diff.
+- **`DatabaseHealthIndicator`** — hardcodes the DB-product string in 3 spots. _Deferred deepening:_ derive the product name from `DatabaseMetaData`. Not done now — a behaviour change beyond a faithful port.
+
+The two deferred items are optional post-conversion follow-ups; intentionally **not** filed as issues to keep the conversion scope clean.
+
 ## Risks
 
 - **Migration ↔ entity validation** (step 4) is the main risk: `ddl-auto: validate` will fail the boot if any column type/name/nullability diverges from the JPA mappings. Mitigated by Testcontainers-Postgres integration tests catching it immediately.

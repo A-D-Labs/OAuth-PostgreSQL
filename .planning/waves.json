@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "summary": "AFK plan for the MySQL->PostgreSQL conversion of the OAuth template (6 issues, all AFK-ready). Grouping follows file-conflict and dependency lines: the conversion core (#3) touches pom + app config + migration + test config and must land alone before anything that also edits those files; verification (#4 tests) and the docker/ops layer (#5) then run in parallel because they touch disjoint files; dead-dep cleanup (#6) goes last since it edits pom after the testcontainers swap. The baseline gate (#1) and the independent CI/docs cleanup (#2) start immediately and share no files. No HITL issues; no dependency-blocked stragglers beyond the stated chain.",
+  "waves": [
+    {
+      "no": 1,
+      "label": "Wave 1 — Baseline gate + independent cleanup",
+      "mode": "parallel-2",
+      "issues": [1, 2],
+      "blurb": "#1 verifies the current MySQL template is green (the gate that blocks all conversion work). #2 removes azure-pipelines.yml and updates the README — fully independent (touches only azure-pipelines.yml + README), zero overlap with the app conversion, so it runs in parallel."
+    },
+    {
+      "no": 2,
+      "label": "Wave 2 — Core conversion",
+      "mode": "sequential",
+      "issues": [3],
+      "blurb": "The irreducible vertical slice: driver + dialect + all profiles + V1 migration rewrite + health label so the app boots and ddl-auto:validate passes on Postgres. Runs alone because it touches the files every later issue also edits (pom, application*.yaml, test config). Blocked by #1."
+    },
+    {
+      "no": 3,
+      "label": "Wave 3 — Verify + ops layer",
+      "mode": "parallel-2",
+      "issues": [4, 5],
+      "blurb": "#4 (full test suite green on Testcontainers-Postgres) and #5 (docker-compose + backup.sh + .env.template to Postgres) touch disjoint file sets — test/app vs docker/ — so they parallelize safely. Both blocked by #3."
+    },
+    {
+      "no": 4,
+      "label": "Wave 4 — Dead-dependency cleanup",
+      "mode": "sequential",
+      "issues": [6],
+      "blurb": "Remove mysql-connector-j, flyway-mysql, org.json, android-json, and H2 from pom.xml. Last because it edits pom after #4's testcontainers swap and must keep the suite green. Blocked by #4."
+    }
+  ]
+}
