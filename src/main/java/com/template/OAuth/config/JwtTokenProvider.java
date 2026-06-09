@@ -4,6 +4,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,6 +20,12 @@ import java.util.stream.Collectors;
 @Component
 public class JwtTokenProvider {
 
+    /** Minimum key length for HS256: 256 bits / 8 = 32 bytes. */
+    private static final int MIN_SECRET_BYTES = 32;
+
+    /** The insecure built-in default that older configs shipped — must never be used. */
+    private static final String INSECURE_DEFAULT_SECRET = "defaultsecretkey12345678901234567890";
+
     @Value("${app.security.jwt.secret}")
     private String jwtSecret;
 
@@ -28,6 +35,31 @@ public class JwtTokenProvider {
     public JwtTokenProvider(UserDetailsService userDetailsService, AppProperties appProperties) {
         this.userDetailsService = userDetailsService;
         this.appProperties = appProperties;
+    }
+
+    /**
+     * Fail fast at startup rather than silently booting with a forgeable signing key.
+     * A blank, too-short, or known-default secret lets anyone mint valid (even admin)
+     * tokens, which is a full authentication bypass.
+     */
+    @PostConstruct
+    void validateSecret() {
+        if (jwtSecret == null || jwtSecret.isBlank()) {
+            throw new IllegalStateException(
+                    "JWT secret is not configured. Set the JWT_SECRET environment variable to a strong, "
+                            + "random value of at least " + MIN_SECRET_BYTES + " bytes.");
+        }
+        if (INSECURE_DEFAULT_SECRET.equals(jwtSecret)) {
+            throw new IllegalStateException(
+                    "JWT secret is set to the insecure built-in default. Set JWT_SECRET to a strong, "
+                            + "random value of at least " + MIN_SECRET_BYTES + " bytes.");
+        }
+        int byteLength = jwtSecret.getBytes(StandardCharsets.UTF_8).length;
+        if (byteLength < MIN_SECRET_BYTES) {
+            throw new IllegalStateException(
+                    "JWT secret is too short (" + byteLength + " bytes). HS256 requires at least "
+                            + MIN_SECRET_BYTES + " bytes (256 bits).");
+        }
     }
 
     private SecretKey getSigningKey() {

@@ -11,6 +11,7 @@ import com.template.OAuth.service.EmailService;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -25,6 +26,9 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -93,7 +97,10 @@ class AuthFlowIT extends BaseIntegrationTest {
         assertThat(stored.getVerificationTokenExpiry()).isAfter(Instant.now());
 
         // === 2) VERIFY (expects redirect to frontend) ===
-        String token = stored.getVerificationToken();
+        // DB stores only the token hash; capture the RAW token from the verification email.
+        ArgumentCaptor<String> tokenCaptor = ArgumentCaptor.forClass(String.class);
+        verify(emailService).sendVerificationEmail(eq(email), anyString(), tokenCaptor.capture());
+        String token = tokenCaptor.getValue();
         mockMvc.perform(get("/auth/verify-email").param("token", token))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(header().string("Location", containsString("/login?verified=1")));

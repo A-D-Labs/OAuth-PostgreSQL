@@ -1,6 +1,7 @@
 package com.template.OAuth.filter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.template.OAuth.config.AppProperties;
 import com.template.OAuth.enums.AuditEventType;
 import com.template.OAuth.service.AuditService;
 import com.template.OAuth.service.RateLimitService;
@@ -30,19 +31,22 @@ public class AuthenticationRateLimitFilter extends OncePerRequestFilter {
     private final RateLimitService rateLimitService;
     private final AuditService auditService;
     private final ObjectMapper objectMapper;
+    private final AppProperties appProperties;
 
     // Track failed authentication attempts by IP
     private final ConcurrentMap<String, Integer> failedAttempts = new ConcurrentHashMap<>();
 
-    // IP addresses that are currently being throttled
+    // IP addresses that are currently being throttled (value = epoch millis when block ends)
     private final ConcurrentMap<String, Long> throttledIPs = new ConcurrentHashMap<>();
 
     public AuthenticationRateLimitFilter(RateLimitService rateLimitService,
             AuditService auditService,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            AppProperties appProperties) {
         this.rateLimitService = rateLimitService;
         this.auditService = auditService;
         this.objectMapper = objectMapper;
+        this.appProperties = appProperties;
     }
 
     @Override
@@ -59,6 +63,9 @@ public class AuthenticationRateLimitFilter extends OncePerRequestFilter {
             @NonNull HttpServletResponse response,
             @NonNull FilterChain filterChain)
             throws ServletException, IOException {
+
+        // Drop expired throttle entries so the in-memory maps can't grow unbounded.
+        evictExpiredEntries();
 
         String clientIp = getClientIP(request);
 
@@ -151,6 +158,20 @@ public class AuthenticationRateLimitFilter extends OncePerRequestFilter {
         return throttledIPs.containsKey(clientIp);
     }
 
+    /**
+     * Remove throttle entries whose block window has elapsed, and the matching failed-attempt
+     * counters. Without this the maps grow with every distinct IP seen and never shrink.
+     */
+    private void evictExpiredEntries() {
+        long now = System.currentTimeMillis();
+        throttledIPs.forEach((ip, until) -> {
+            if (until <= now) {
+                throttledIPs.remove(ip);
+                failedAttempts.remove(ip);
+            }
+        });
+    }
+
     private void rejectRequest(HttpServletResponse response, String message, String details, HttpStatus status)
             throws IOException {
         response.setStatus(status.value());
@@ -166,9 +187,14 @@ public class AuthenticationRateLimitFilter extends OncePerRequestFilter {
 
     @NonNull
     private String getClientIP(HttpServletRequest request) {
-        String xfHeader = request.getHeader("X-Forwarded-For");
-        if (xfHeader != null) {
-            return xfHeader.split(",")[0].trim();
+        // Only honor X-Forwarded-For when explicitly configured to trust an upstream proxy.
+        // Otherwise an attacker could spoof the header to dodge per-IP throttling and to
+        // inflate the in-memory maps with arbitrary keys.
+        if (appProperties.getSecurity().isTrustProxy()) {
+            String xfHeader = request.getHeader("X-Forwarded-For");
+            if (xfHeader != null && !xfHeader.isBlank()) {
+                return xfHeader.split(",")[0].trim();
+            }
         }
         String remoteAddr = request.getRemoteAddr();
         return remoteAddr != null ? remoteAddr : "unknown";

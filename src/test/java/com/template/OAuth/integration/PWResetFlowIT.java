@@ -6,6 +6,7 @@ import com.template.OAuth.service.EmailService;
 import jakarta.servlet.http.Cookie;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -16,6 +17,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -55,9 +59,13 @@ class PWResetFlowIT extends BaseIntegrationTest {
                                 .andExpect(jsonPath("$.email").value(email));
 
                 User justRegistered = userRepository.findByEmail(email).orElseThrow();
-                String verificationToken = justRegistered.getVerificationToken();
-                assertThat(verificationToken).isNotBlank();
                 assertThat(justRegistered.isEnabled()).isFalse();
+
+                // Tokens are stored hashed; capture the RAW token from the verification email.
+                ArgumentCaptor<String> verifyTokenCaptor = ArgumentCaptor.forClass(String.class);
+                verify(emailService).sendVerificationEmail(eq(email), anyString(), verifyTokenCaptor.capture());
+                String verificationToken = verifyTokenCaptor.getValue();
+                assertThat(verificationToken).isNotBlank();
 
                 // -- Verify via endpoint -> expect 302 redirect to FE login
                 mockMvc.perform(get("/auth/verify-email").param("token", verificationToken))
@@ -81,9 +89,14 @@ class PWResetFlowIT extends BaseIntegrationTest {
                                                 .value("Password reset instructions have been sent to your email"));
 
                 User afterForgot = userRepository.findByEmail(email).orElseThrow();
-                String resetToken = afterForgot.getPasswordResetToken();
-                assertThat(resetToken).isNotBlank();
+                assertThat(afterForgot.getPasswordResetToken()).isNotBlank();
                 assertThat(afterForgot.getPasswordResetTokenExpiry()).isNotNull();
+
+                // Capture the RAW reset token from the reset email (DB stores only its hash).
+                ArgumentCaptor<String> resetTokenCaptor = ArgumentCaptor.forClass(String.class);
+                verify(emailService).sendPasswordResetEmail(eq(email), anyString(), resetTokenCaptor.capture());
+                String resetToken = resetTokenCaptor.getValue();
+                assertThat(resetToken).isNotBlank();
 
                 // 2) Reset with token
                 mockMvc.perform(post("/auth/reset-password")

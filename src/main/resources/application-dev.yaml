@@ -49,6 +49,12 @@ app:
 
   # Cookies & security (dev)
   security:
+    # DEV ONLY: a strong-enough local default so the app boots without env setup. This is
+    # public/insecure by definition — never reuse it outside local development. Real
+    # environments must set JWT_SECRET (prod has no default and fails fast without it).
+    jwt:
+      secret: ${JWT_SECRET:dev-only-insecure-jwt-signing-key-CHANGE-ME-0123456789}
+    trust-proxy: false           # local dev is not behind a trusted reverse proxy
     cookie:
       secure: false
       sameSite: Lax

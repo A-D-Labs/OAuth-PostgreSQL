@@ -9,6 +9,7 @@ import com.template.OAuth.entities.User;
 import com.template.OAuth.repositories.RefreshTokenRepository;
 import com.template.OAuth.repositories.UserRepository;
 import com.template.OAuth.util.CookieUtil;
+import com.template.OAuth.util.TokenHasher;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -37,25 +38,27 @@ public class RefreshTokenService {
 
     @Transactional
     public RefreshToken generateRefreshToken(User user) {
-        Optional<RefreshToken> existingToken = refreshTokenRepository.findByUser(user);
+        RefreshToken rt = refreshTokenRepository.findByUser(user).orElseGet(() -> {
+            RefreshToken created = new RefreshToken();
+            created.setUser(user);
+            return created;
+        });
 
-        if (existingToken.isPresent()) {
-            RefreshToken rt = existingToken.get();
-            rt.setToken(refreshTokenProvider.generateRefreshToken());
-            rt.setExpiryDate(Instant.now().plusMillis(appProperties.getSecurity().getRefresh().getExpiration()));
-            return refreshTokenRepository.save(rt);
-        } else {
-            RefreshToken rt = new RefreshToken();
-            rt.setUser(user);
-            rt.setToken(refreshTokenProvider.generateRefreshToken());
-            rt.setExpiryDate(Instant.now().plusMillis(appProperties.getSecurity().getRefresh().getExpiration()));
-            return refreshTokenRepository.save(rt);
-        }
+        String rawToken = refreshTokenProvider.generateRefreshToken();
+        rt.setToken(TokenHasher.sha256Hex(rawToken));
+        rt.setExpiryDate(Instant.now().plusMillis(appProperties.getSecurity().getRefresh().getExpiration()));
+
+        RefreshToken saved = refreshTokenRepository.save(rt);
+        // The raw token is what the client receives; only its hash is persisted.
+        saved.setRawToken(rawToken);
+        return saved;
     }
 
     @Transactional
     public RefreshTokenResponse refreshToken(String oldRefreshToken, HttpServletResponse response) {
-        Optional<RefreshToken> refreshTokenOpt = refreshTokenRepository.findByToken(oldRefreshToken);
+        // Tokens are stored hashed; look up by the hash of the presented raw token.
+        Optional<RefreshToken> refreshTokenOpt =
+                refreshTokenRepository.findByToken(TokenHasher.sha256Hex(oldRefreshToken));
         if (refreshTokenOpt.isEmpty()) {
             throw new RuntimeException("Invalid refresh token");
         }
@@ -70,9 +73,9 @@ public class RefreshTokenService {
         // Generate new JWT
         String newAccessToken = jwtTokenProvider.generateToken(refreshToken.getUser().getEmail());
 
-        // Rotate refresh token
+        // Rotate refresh token (store the hash, hand the raw value to the client)
         String newRefreshToken = refreshTokenProvider.generateRefreshToken();
-        refreshToken.setToken(newRefreshToken);
+        refreshToken.setToken(TokenHasher.sha256Hex(newRefreshToken));
         refreshToken.setExpiryDate(Instant.now().plusMillis(appProperties.getSecurity().getRefresh().getExpiration()));
         refreshTokenRepository.save(refreshToken);
 
