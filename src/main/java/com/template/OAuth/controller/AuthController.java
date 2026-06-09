@@ -6,6 +6,7 @@ import com.template.OAuth.config.JwtTokenProvider;
 import com.template.OAuth.dto.*;
 import com.template.OAuth.entities.User;
 import com.template.OAuth.enums.AuditEventType;
+import com.template.OAuth.exception.ApiException;
 import com.template.OAuth.repositories.UserRepository;
 import com.template.OAuth.service.*;
 import com.template.OAuth.util.CookieUtil;
@@ -73,19 +74,13 @@ public class AuthController {
     public ResponseEntity<Map<String, String>> registerUser(
             @Parameter(description = "User registration details", required = true) @Valid @RequestBody EmailRegistrationRequest registrationRequest) {
 
-        try {
-            User user = authService.registerUser(registrationRequest);
-            metricsService.incrementRegistration();
+        User user = authService.registerUser(registrationRequest);
+        metricsService.incrementRegistration();
 
-            Map<String, String> response = new HashMap<>();
-            response.put("message", messageService.getMessage("user.created"));
-            response.put("email", user.getEmail());
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            Map<String, String> response = new HashMap<>();
-            response.put("message", e.getMessage());
-            return ResponseEntity.badRequest().body(response);
-        }
+        Map<String, String> response = new HashMap<>();
+        response.put("message", messageService.getMessage("user.created"));
+        response.put("email", user.getEmail());
+        return ResponseEntity.ok(response);
     }
 
     @Operation(summary = "Verify email address", description = "Verifies a user's email address using the token sent in the verification email")
@@ -96,18 +91,13 @@ public class AuthController {
     @SecurityRequirements
     @GetMapping("/verify-email")
     public ResponseEntity<?> verifyEmail(@RequestParam String token) {
-        try {
-            boolean ok = authService.verifyEmail(token);
-            if (ok) {
-                String redirect = appProperties.getApplication().getBaseUrl() + "/login?verified=1";
-                return ResponseEntity.status(302).header("Location", redirect).build();
-            } else {
-                Map<String, String> body = Map.of("message", "Invalid or expired verification token");
-                return ResponseEntity.badRequest().body(body);
-            }
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        boolean ok = authService.verifyEmail(token);
+        if (ok) {
+            String redirect = appProperties.getApplication().getBaseUrl() + "/login?verified=1";
+            return ResponseEntity.status(302).header("Location", redirect).build();
         }
+        Map<String, String> body = Map.of("message", messageService.getMessage("auth.token.invalid"));
+        return ResponseEntity.badRequest().body(body);
     }
 
     @Operation(summary = "Resend verification email", description = "Resends the verification email for unverified accounts")
@@ -120,17 +110,11 @@ public class AuthController {
     public ResponseEntity<Map<String, String>> resendVerificationEmail(
             @Parameter(description = "Email address", required = true) @RequestParam String email) {
 
-        try {
-            authService.resendVerificationEmail(email);
+        authService.resendVerificationEmail(email);
 
-            Map<String, String> response = new HashMap<>();
-            response.put("message", messageService.getMessage("email.verification.resent"));
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            Map<String, String> response = new HashMap<>();
-            response.put("message", e.getMessage());
-            return ResponseEntity.badRequest().body(response);
-        }
+        Map<String, String> response = new HashMap<>();
+        response.put("message", messageService.getMessage("email.verification.resent"));
+        return ResponseEntity.ok(response);
     }
 
     @Operation(summary = "Initiate password reset", description = "Sends a password reset email to the specified email address")
@@ -159,22 +143,13 @@ public class AuthController {
     public ResponseEntity<Map<String, String>> resetPassword(
             @Parameter(description = "Password reset completion data", required = true) @Valid @RequestBody PasswordResetCompletion resetCompletion) {
 
-        try {
-            boolean reset = authService.resetPassword(resetCompletion.getToken(), resetCompletion.getPassword());
+        // resetPassword throws a typed ApiException on an invalid/expired token (handled by the
+        // advice); a normal return is always success.
+        authService.resetPassword(resetCompletion.getToken(), resetCompletion.getPassword());
 
-            Map<String, String> response = new HashMap<>();
-            if (reset) {
-                response.put("message", messageService.getMessage("password.reset.success"));
-                return ResponseEntity.ok(response);
-            } else {
-                response.put("message", messageService.getMessage("password.reset.failed"));
-                return ResponseEntity.badRequest().body(response);
-            }
-        } catch (Exception e) {
-            Map<String, String> response = new HashMap<>();
-            response.put("message", e.getMessage());
-            return ResponseEntity.badRequest().body(response);
-        }
+        Map<String, String> response = new HashMap<>();
+        response.put("message", messageService.getMessage("password.reset.success"));
+        return ResponseEntity.ok(response);
     }
 
     @Operation(summary = "Login with email and password", description = "Authenticates a user with email and password credentials")
@@ -193,9 +168,10 @@ public class AuthController {
             authService.authenticateAndGenerateTokens(loginRequest, response);
             metricsService.incrementAuthSuccess();
             return ResponseEntity.ok(new AuthResponse(null, messageService.getMessage("auth.login.success")));
-        } catch (Exception e) {
+        } catch (ApiException e) {
             metricsService.incrementAuthFailure();
-            return ResponseEntity.badRequest().body(new AuthResponse(null, e.getMessage()));
+            return ResponseEntity.status(e.getStatus())
+                    .body(new AuthResponse(null, messageService.getMessage(e.getMessageKey())));
         }
     }
 

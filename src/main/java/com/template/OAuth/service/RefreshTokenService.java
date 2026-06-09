@@ -6,6 +6,10 @@ import com.template.OAuth.config.RefreshTokenProvider;
 import com.template.OAuth.dto.RefreshTokenResponse;
 import com.template.OAuth.entities.RefreshToken;
 import com.template.OAuth.entities.User;
+import com.template.OAuth.enums.AuditEventType;
+import com.template.OAuth.exception.InvalidRefreshTokenException;
+import com.template.OAuth.exception.RefreshTokenExpiredException;
+import com.template.OAuth.exception.TokenReuseException;
 import com.template.OAuth.repositories.RefreshTokenRepository;
 import com.template.OAuth.repositories.UserRepository;
 import com.template.OAuth.util.CookieUtil;
@@ -36,6 +40,9 @@ public class RefreshTokenService {
     @Autowired
     private AppProperties appProperties;
 
+    @Autowired
+    private AuditService auditService;
+
     @Transactional
     public RefreshToken generateRefreshToken(User user) {
         RefreshToken rt = refreshTokenRepository.findByUser(user).orElseGet(() -> {
@@ -46,6 +53,8 @@ public class RefreshTokenService {
 
         String rawToken = refreshTokenProvider.generateRefreshToken();
         rt.setToken(TokenHasher.sha256Hex(rawToken));
+        // A fresh login starts a new token family — clear any rotation history.
+        rt.setPreviousToken(null);
         rt.setExpiryDate(Instant.now().plusMillis(appProperties.getSecurity().getRefresh().getExpiration()));
 
         RefreshToken saved = refreshTokenRepository.save(rt);
@@ -57,24 +66,41 @@ public class RefreshTokenService {
     @Transactional
     public RefreshTokenResponse refreshToken(String oldRefreshToken, HttpServletResponse response) {
         // Tokens are stored hashed; look up by the hash of the presented raw token.
-        Optional<RefreshToken> refreshTokenOpt =
-                refreshTokenRepository.findByToken(TokenHasher.sha256Hex(oldRefreshToken));
+        String presentedHash = TokenHasher.sha256Hex(oldRefreshToken);
+        Optional<RefreshToken> refreshTokenOpt = refreshTokenRepository.findByToken(presentedHash);
+
         if (refreshTokenOpt.isEmpty()) {
-            throw new RuntimeException("Invalid refresh token");
+            // Not the current token. If it matches the token we just rotated away, it is a
+            // replay of a consumed token — the hallmark of a stolen refresh token. Revoke the
+            // entire family so neither the attacker's rotated token nor this one survives.
+            Optional<RefreshToken> reusedOpt = refreshTokenRepository.findByPreviousToken(presentedHash);
+            if (reusedOpt.isPresent()) {
+                RefreshToken compromised = reusedOpt.get();
+                String email = compromised.getUser().getEmail();
+                refreshTokenRepository.delete(compromised);
+                auditService.logEvent(
+                        AuditEventType.ACCESS_DENIED,
+                        "Refresh token reuse detected; all sessions for the user were revoked",
+                        "User: " + email);
+                throw new TokenReuseException("Refresh token reuse detected for user " + email);
+            }
+            throw new InvalidRefreshTokenException("Refresh token not recognized");
         }
 
         RefreshToken refreshToken = refreshTokenOpt.get();
 
         if (refreshToken.getExpiryDate().isBefore(Instant.now())) {
             refreshTokenRepository.delete(refreshToken);
-            throw new RuntimeException("Refresh token has expired, please log in again.");
+            throw new RefreshTokenExpiredException("Refresh token has expired");
         }
 
         // Generate new JWT
         String newAccessToken = jwtTokenProvider.generateToken(refreshToken.getUser().getEmail());
 
-        // Rotate refresh token (store the hash, hand the raw value to the client)
+        // Rotate refresh token (store the hash, hand the raw value to the client). Remember the
+        // hash we just consumed so a later replay of it is detected as reuse.
         String newRefreshToken = refreshTokenProvider.generateRefreshToken();
+        refreshToken.setPreviousToken(presentedHash);
         refreshToken.setToken(TokenHasher.sha256Hex(newRefreshToken));
         refreshToken.setExpiryDate(Instant.now().plusMillis(appProperties.getSecurity().getRefresh().getExpiration()));
         refreshTokenRepository.save(refreshToken);

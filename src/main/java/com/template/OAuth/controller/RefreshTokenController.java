@@ -3,6 +3,7 @@ package com.template.OAuth.controller;
 import com.template.OAuth.annotation.Auditable;
 import com.template.OAuth.dto.RefreshTokenResponse;
 import com.template.OAuth.enums.AuditEventType;
+import com.template.OAuth.exception.ApiException;
 import com.template.OAuth.service.MessageService;
 import com.template.OAuth.service.RefreshTokenService;
 import jakarta.servlet.http.Cookie;
@@ -52,13 +53,9 @@ public class RefreshTokenController {
             // Update the message to use internationalization
             refreshResponse.setMessage(messageService.getMessage("auth.login.success"));
             return ResponseEntity.ok(refreshResponse);
-        } catch (Exception e) {
-            String messageKey = "auth.token.expired";
-            if (e.getMessage() != null && e.getMessage().contains("Invalid")) {
-                messageKey = "auth.token.invalid";
-            }
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(new RefreshTokenResponse(null, null, messageService.getMessage(messageKey)));
+        } catch (ApiException e) {
+            return ResponseEntity.status(e.getStatus())
+                    .body(new RefreshTokenResponse(null, null, messageService.getMessage(e.getMessageKey())));
         }
     }
 }
