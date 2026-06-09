@@ -1,0 +1,5 @@
+interface:
+  display_name: Ralph GitHub TDD
+  short_description: Coordinate Ralph, four subagents, GitHub issues, /tdd, and Chrome UI checks.
+  icon: circle-nodes
+  primary_color: '#4F46E5'
