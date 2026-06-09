@@ -121,24 +121,6 @@ public class AdminController {
         return ResponseEntity.ok(userDtos);
     }
 
-    @Operation(summary = "Get premium content",
-            description = "Retrieves premium content (Premium or Admin access required)")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Premium content retrieved successfully"),
-            @ApiResponse(responseCode = "401", description = "Unauthorized - Not authenticated",
-                    content = @Content),
-            @ApiResponse(responseCode = "403", description = "Forbidden - Not authorized",
-                    content = @Content)
-    })
-    @PreAuthorize("hasRole('PREMIUM')")
-    @GetMapping("/premium/content")
-    public ResponseEntity<Map<String, String>> getPremiumContent() {
-        Map<String, String> response = new HashMap<>();
-        response.put("message", messageService.getMessage("app.welcome"));
-        response.put("content", "This is premium content available only to premium users");
-        return ResponseEntity.ok(response);
-    }
-
     @Operation(summary = "Get user profile",
             description = "Retrieves the profile of the currently authenticated user")
     @ApiResponses(value = {

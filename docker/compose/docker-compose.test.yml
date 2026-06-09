@@ -1,26 +1,15 @@
 version: '3.8'
 
+# Provisions the PostgreSQL the test suite runs against (see
+# docs/adr/0003-testcontainers-postgres-for-tests.md). Tests are NOT run inside a
+# container — they execute via `./mvnw verify` on the host and connect to this DB on
+# localhost:5433. Bring it up first:
+#   docker-compose -f docker/compose/docker-compose.test.yml up -d
+#   ./mvnw verify
 services:
-  app:
-    build:
-      context: .
-      dockerfile: .docker/test/Dockerfile
-    environment:
-      - SPRING_PROFILES_ACTIVE=test
-      - TEST_DB_URL=jdbc:postgresql://db:5432/oauth_template_test
-      - TEST_DB_USERNAME=test
-      - TEST_DB_PASSWORD=test
-    volumes:
-      - ./src:/app/src
-      - ./target:/app/target
-    depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      - test-network
-
   db:
     image: postgres:16-alpine
+    container_name: oauth-pg-test
     environment:
       - POSTGRES_DB=oauth_template_test
       - POSTGRES_USER=test

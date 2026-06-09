@@ -2,9 +2,8 @@ version: '3.8'
 
 services:
   app:
-    build:
-      context: .
-      dockerfile: .docker/pat/Dockerfile
+    # Image is built daemonlessly by Jib: `./mvnw -DskipTests package jib:dockerBuild`
+    image: oauth-postgresql:${OAUTH_IMAGE_TAG:-latest}
     environment:
       - SPRING_PROFILES_ACTIVE=pat
       - JAVA_OPTS=-Xms512m -Xmx1g

@@ -110,7 +110,6 @@ public class SecurityConfig {
                         .requestMatchers("/api/premium/**").hasAnyRole("ADMIN", "PREMIUM")
                         .requestMatchers("/api/user/**").authenticated()
                         .requestMatchers("/management/**").hasRole("ADMIN")
-                        .requestMatchers("/management/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
 
                 // Content Security Policy (CSP)
