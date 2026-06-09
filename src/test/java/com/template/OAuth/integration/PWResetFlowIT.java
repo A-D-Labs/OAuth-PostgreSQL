@@ -34,7 +34,7 @@ class PWResetFlowIT extends BaseIntegrationTest {
         @Autowired
         private UserRepository userRepository;
 
-        // Boot 3.4+: prefer MockitoBean over deprecated @MockBean
+        // Boot 3.4+: prefer MockitoBean over deprecated @MockitoBean
         @MockitoBean
         private EmailService emailService;
 

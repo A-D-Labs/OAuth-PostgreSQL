@@ -1,17 +1,47 @@
 # Test Environment Configuration
+# Integration tests run against an externally-managed PostgreSQL (Testcontainers is
+# non-viable on the headless build box: docker-java discovery fails against the
+# Docker Desktop proxy socket). Start the DB with:
+#   docker run -d --name oauth-pg-test -e POSTGRES_DB=oauth_template_test \
+#     -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test -p 5433:5432 postgres:16-alpine
 spring:
   datasource:
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=MySQL
-    username: sa
-    password: sa
-    driver-class-name: org.h2.Driver
+    url: ${TEST_DB_URL:jdbc:postgresql://localhost:5433/oauth_template_test}
+    username: ${TEST_DB_USERNAME:test}
+    password: ${TEST_DB_PASSWORD:test}
+    driver-class-name: org.postgresql.Driver
+    # Several @SpringBootTest contexts stay cached and open concurrently; cap each
+    # pool small so total connections stay well under Postgres' max_connections (100).
+    hikari:
+      maximum-pool-size: 4
+      minimum-idle: 0
+      idle-timeout: 10000
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: validate  # Flyway owns the schema; Hibernate only validates
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
     show-sql: true
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+  # Disable Redis-backed rate limiting in tests (no Redis on the build box)
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+  # OAuth test client (no real provider calls)
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: test-client-id
+            client-secret: test-client-secret
 
   # Disable actual mail sending for tests
   mail:
@@ -31,6 +61,7 @@ spring:
 app:
   security:
     jwt:
+      secret: RxgP93EyGqmCG/JovZiDo3nJyHQFD/HIIn8zcQXeZfD6NijFEakcLzk0xKatgnE96o+DKBzUrrAW7ozJh+8SQg==
       expiration: 3600000  # 1 hour
     refresh:
       expiration: 86400000  # 1 day
@@ -58,10 +89,16 @@ app:
   cors:
     allowedOrigins:
       - http://localhost:3000
+  rate-limiting:
+    enabled: false
 
-# Disable security for tests
-security:
-  ignored: /**
+# Actuator: no real mail/redis backends in tests, so skip those health contributors
+management:
+  health:
+    mail:
+      enabled: false
+    redis:
+      enabled: false
 
 # Logging configuration for testing
 logging:
@@ -69,9 +106,7 @@ logging:
     root: INFO
     com.template.OAuth: DEBUG
     org.springframework.security: DEBUG
-    org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping: TRACE
 
 # Test-specific properties (for testing only)
 jwt:
   secret: RxgP93EyGqmCG/JovZiDo3nJyHQFD/HIIn8zcQXeZfD6NijFEakcLzk0xKatgnE96o+DKBzUrrAW7ozJh+8SQg==
-

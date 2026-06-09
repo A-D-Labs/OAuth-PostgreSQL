@@ -34,33 +34,4 @@ ENV SPRING_PROFILES_ACTIVE=pat \
 
 EXPOSE ${SERVER_PORT}
 
-ENTRYPOINT ["sh", "-c", "java ${JAVA_OPTS} -jar app.jar"]version: '3.8'
-
-services:
-  app:
-    build:
-      context: .
-      dockerfile: .docker/test/Dockerfile
-    environment:
-      - SPRING_PROFILES_ACTIVE=test
-      - DB_URL=jdbc:h2:mem:testdb
-      - DB_USERNAME=sa
-      - DB_PASSWORD=sa
-    volumes:
-      - ./src:/app/src
-      - ./target:/app/target
-    networks:
-      - test-network
-
-  db:
-    image: h2:latest
-    environment:
-      - H2_OPTIONS=-ifNotExists
-    ports:
-      - "9092:9092"
-    networks:
-      - test-network
-
-networks:
-  test-network:
-    driver: bridge
+ENTRYPOINT ["sh", "-c", "java ${JAVA_OPTS} -jar app.jar"]

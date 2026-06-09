@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-// import org.springframework.boot.test.mock.mockito.MockBean; // deprecated in Boot 3.4+
+// import org.springframework.test.context.bean.override.mockito.MockitoBean; // deprecated in Boot 3.4+
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean; // <-- new in 3.4+
 import org.springframework.http.MediaType;
@@ -35,7 +35,7 @@ class AuthControllerTest {
     private ObjectMapper objectMapper;
 
     @MockitoBean
-    private AuthService authService; // replaced @MockBean
+    private AuthService authService; // replaced @MockitoBean
 
     private EmailRegistrationRequest registrationRequest;
     private User testUser;

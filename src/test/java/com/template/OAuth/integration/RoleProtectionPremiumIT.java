@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.annotation.DirtiesContext;
@@ -46,7 +46,7 @@ class RoleProtectionPremiumIT extends BaseIntegrationTest {
     @Autowired
     private UserService userService;
 
-    @MockBean
+    @MockitoBean
     private JavaMailSender javaMailSender;
 
     @Test
@@ -56,14 +56,14 @@ class RoleProtectionPremiumIT extends BaseIntegrationTest {
         registerAndVerify(email, "Premium Check");
         Cookie userJwt = loginAndGetJwt(email, PASSWORD);
 
-        mockMvc.perform(get("/api/admin/premium/content").cookie(userJwt))
+        mockMvc.perform(get("/api/premium/content").cookie(userJwt))
                 .andExpect(status().isForbidden());
 
         userService.assignRole(email, Role.PREMIUM);
 
         Cookie premiumJwt = loginAndGetJwt(email, PASSWORD);
 
-        mockMvc.perform(get("/api/admin/premium/content").cookie(premiumJwt))
+        mockMvc.perform(get("/api/premium/content").cookie(premiumJwt))
                 .andExpect(status().isOk());
     }
 

@@ -14,8 +14,4 @@ services:
 
   db:
     ports:
-      - "3306:3306"  # Expose MySQL port for development
-    environment:
-      - MYSQL_ALLOW_EMPTY_PASSWORD=no
-      - MYSQL_ROOT_HOST=%  # Allow connections from any host in dev
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --default-authentication-plugin=mysql_native_password
+      - "5432:5432"  # Expose PostgreSQL port for development

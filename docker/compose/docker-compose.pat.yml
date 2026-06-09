@@ -26,18 +26,20 @@ services:
       retries: 3
 
   db:
+    image: postgres:16-alpine
     environment:
-      - MYSQL_ROOT_PASSWORD=${PAT_DB_PASSWORD}
-      - MYSQL_DATABASE=oauth_pat
+      - POSTGRES_PASSWORD=${PAT_DB_PASSWORD}
+      - POSTGRES_USER=${PAT_DB_USERNAME}
+      - POSTGRES_DB=oauth_pat
     volumes:
-      - pat_mysql_data:/var/lib/mysql
+      - pat_pg_data:/var/lib/postgresql/data
     networks:
       - pat-network
 
 volumes:
   pat_uploads:
   pat_logs:
-  pat_mysql_data:
+  pat_pg_data:
 
 networks:
   pat-network:

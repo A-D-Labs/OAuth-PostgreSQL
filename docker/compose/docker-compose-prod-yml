@@ -30,8 +30,6 @@ services:
 
   db:
     restart: always
-    environment:
-      - MYSQL_ALLOW_EMPTY_PASSWORD=no
     deploy:
       resources:
         limits:
@@ -40,27 +38,27 @@ services:
           memory: 512M
     volumes:
       # Add backup volume for production
-      - oauth-mysql-backups:/var/backups/mysql
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --default-authentication-plugin=mysql_native_password --max-connections=200
+      - oauth-pg-backups:/var/backups/postgresql
+    command: -c max_connections=200
 
   # Add a backup service for production
   backup:
-    image: mysql:8.0
+    image: postgres:16-alpine
     container_name: oauth-backup-${SPRING_PROFILES_ACTIVE:-prod}
     restart: always
     depends_on:
       - db
     volumes:
-      - oauth-mysql-backups:/backups
+      - oauth-pg-backups:/backups
       - ../../docker/scripts/backup.sh:/backup.sh
     environment:
-      - MYSQL_PWD=${DB_PASSWORD}
-      - MYSQL_DATABASE=oauth_${SPRING_PROFILES_ACTIVE:-prod}
-      - MYSQL_USER=${DB_USERNAME}
+      - PGPASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=oauth_${SPRING_PROFILES_ACTIVE:-prod}
+      - POSTGRES_USER=${DB_USERNAME}
       - BACKUP_SCHEDULE=0 0 * * *  # Daily at midnight
-    entrypoint: ["/bin/bash", "/backup.sh"]
+    entrypoint: ["/bin/sh", "/backup.sh"]
     networks:
       - oauth-network-${SPRING_PROFILES_ACTIVE:-prod}
 
 volumes:
-  oauth-mysql-backups:
+  oauth-pg-backups:
