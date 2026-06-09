@@ -89,6 +89,12 @@ A comprehensive Spring Boot template for implementing OAuth 2.0 authentication w
    ./mvnw clean package
    ```
 
+   Build a container image without a Docker daemon (via Jib):
+   ```bash
+   ./mvnw compile jib:dockerBuild   # build to the local Docker daemon
+   ./mvnw compile jib:build         # build & push to a registry
+   ```
+
 5. **Run the application**:
    With Maven:
    ```bash
@@ -269,21 +275,39 @@ The template includes Azure DevOps pipeline configurations and infrastructure co
 
 The project includes a comprehensive test suite:
 
-- Unit tests for services and components
-- Integration tests for end-to-end functionality
+- Unit tests for services and components (Surefire — no database needed)
+- Integration tests (`*IT`) for end-to-end functionality (Failsafe — run a real PostgreSQL)
 - Security tests for authentication flows
 
-Run tests with:
+Integration tests run against a **real PostgreSQL**, not H2 or Testcontainers (see
+`docs/adr/0003-testcontainers-postgres-for-tests.md`). Start a throwaway test DB first:
+
+```bash
+docker run -d --name oauth-pg-test \
+  -e POSTGRES_DB=oauth_template_test \
+  -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test \
+  -p 5433:5432 postgres:16-alpine
+```
+
+The `test` profile defaults to `jdbc:postgresql://localhost:5433/oauth_template_test`
+(override with `TEST_DB_URL` / `TEST_DB_USERNAME` / `TEST_DB_PASSWORD`).
+
+Run unit tests only (no DB required):
 
 ```bash
 ./mvnw test
 ```
 
-Or run specific test categories:
+Run the full suite including integration tests (requires the test DB above):
+
+```bash
+./mvnw verify
+```
+
+Run a specific test:
 
 ```bash
 ./mvnw test -Dtest=UserServiceTest
-./mvnw test -Dtest=*Integration*
 ```
 
 ## 🔍 API Documentation
