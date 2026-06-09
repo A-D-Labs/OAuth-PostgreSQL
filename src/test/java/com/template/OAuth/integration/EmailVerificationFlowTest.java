@@ -5,18 +5,24 @@ import com.template.OAuth.dto.EmailRegistrationRequest;
 import com.template.OAuth.entities.User;
 import com.template.OAuth.repositories.RefreshTokenRepository;
 import com.template.OAuth.repositories.UserRepository;
+import com.template.OAuth.service.EmailService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -44,6 +50,12 @@ class EmailVerificationFlowTest extends BaseIntegrationTest {
         @Autowired
         private UserRepository userRepository;
 
+        // Tokens are stored hashed, so the raw token can no longer be read back from the DB.
+        // Capture it from the (mocked) verification email instead — that is what a real user
+        // receives and clicks.
+        @MockitoBean
+        private EmailService emailService;
+
         private EmailRegistrationRequest registrationRequest;
 
         @BeforeEach
@@ -69,10 +81,13 @@ class EmailVerificationFlowTest extends BaseIntegrationTest {
                 assertTrue(userOpt.isPresent());
                 User user = userOpt.get();
                 assertFalse(user.isEnabled(), "User should not be enabled before verification");
-                assertNotNull(user.getVerificationToken(), "Verification token should be set");
+                assertNotNull(user.getVerificationToken(), "Verification token (hash) should be set");
 
-                // Step 3: Extract verification token and verify email
-                String verificationToken = user.getVerificationToken();
+                // Step 3: Capture the RAW token from the verification email, then verify
+                ArgumentCaptor<String> tokenCaptor = ArgumentCaptor.forClass(String.class);
+                verify(emailService).sendVerificationEmail(
+                                eq("verificationtest@example.com"), anyString(), tokenCaptor.capture());
+                String verificationToken = tokenCaptor.getValue();
                 mockMvc.perform(get("/auth/verify-email")
                                 .param("token", verificationToken))
                                 .andExpect(status().isFound())

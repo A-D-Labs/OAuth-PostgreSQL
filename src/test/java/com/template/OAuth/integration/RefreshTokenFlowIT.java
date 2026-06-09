@@ -9,6 +9,7 @@ import com.template.OAuth.service.EmailService;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,7 +27,10 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
@@ -151,10 +155,11 @@ class RefreshTokenFlowIT extends BaseIntegrationTest {
         assertThat(registerRes.getResponse().getStatus()).isEqualTo(200);
         log.debug("Register response: {}", registerRes.getResponse().getContentAsString(StandardCharsets.UTF_8));
 
-        // 2) verify email (controller redirects to FE; expect 302)
-        String verificationToken = userRepository.findByEmail(email)
-                .flatMap(u -> Optional.ofNullable(u.getVerificationToken()))
-                .orElseThrow(() -> new IllegalStateException("No verification token stored for user"));
+        // 2) verify email (controller redirects to FE; expect 302). Tokens are stored hashed,
+        // so capture the RAW token from the verification email the user would receive.
+        ArgumentCaptor<String> tokenCaptor = ArgumentCaptor.forClass(String.class);
+        verify(emailService).sendVerificationEmail(eq(email), anyString(), tokenCaptor.capture());
+        String verificationToken = tokenCaptor.getValue();
 
         MvcResult verifyRes = mockMvc.perform(get("/auth/verify-email").param("token", verificationToken))
                 .andReturn();

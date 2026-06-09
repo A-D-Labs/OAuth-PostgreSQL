@@ -6,6 +6,7 @@ import com.template.OAuth.config.RefreshTokenProvider;
 import com.template.OAuth.entities.RefreshToken;
 import com.template.OAuth.entities.User;
 import com.template.OAuth.repositories.RefreshTokenRepository;
+import com.template.OAuth.util.TokenHasher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -117,7 +118,9 @@ class RefreshTokenServiceTest {
         // Arrange
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        when(refreshTokenRepository.findByToken("valid-refresh-token")).thenReturn(Optional.of(testRefreshToken));
+        // Tokens are stored hashed; the service looks them up by hash of the presented value.
+        when(refreshTokenRepository.findByToken(TokenHasher.sha256Hex("valid-refresh-token")))
+                .thenReturn(Optional.of(testRefreshToken));
         when(jwtTokenProvider.generateToken(anyString())).thenReturn("new-jwt-token");
         when(refreshTokenProvider.generateRefreshToken()).thenReturn("new-refresh-token");
         when(refreshTokenRepository.save(any(RefreshToken.class))).thenReturn(testRefreshToken);
@@ -146,7 +149,8 @@ class RefreshTokenServiceTest {
         expiredToken.setToken("expired-token");
         expiredToken.setExpiryDate(Instant.now().minusSeconds(3600)); // 1 hour in past
 
-        when(refreshTokenRepository.findByToken("expired-token")).thenReturn(Optional.of(expiredToken));
+        when(refreshTokenRepository.findByToken(TokenHasher.sha256Hex("expired-token")))
+                .thenReturn(Optional.of(expiredToken));
         doNothing().when(refreshTokenRepository).delete(any(RefreshToken.class));
 
         // Act & Assert
@@ -162,7 +166,8 @@ class RefreshTokenServiceTest {
         // Arrange
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        when(refreshTokenRepository.findByToken("invalid-token")).thenReturn(Optional.empty());
+        when(refreshTokenRepository.findByToken(TokenHasher.sha256Hex("invalid-token")))
+                .thenReturn(Optional.empty());
 
         // Act & Assert
         assertThrows(RuntimeException.class, () -> {

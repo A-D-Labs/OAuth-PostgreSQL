@@ -4,25 +4,27 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.template.OAuth.entities.User;
 import com.template.OAuth.enums.Role;
 import com.template.OAuth.repositories.UserRepository;
+import com.template.OAuth.service.EmailService;
 import com.template.OAuth.service.UserService;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -47,7 +49,7 @@ class RoleProtectionModeratorIT extends BaseIntegrationTest {
     private UserService userService;
 
     @MockitoBean
-    private JavaMailSender javaMailSender;
+    private EmailService emailService;
 
     @Test
     void moderator_endpoint_requires_moderator_or_admin() throws Exception {
@@ -78,9 +80,11 @@ class RoleProtectionModeratorIT extends BaseIntegrationTest {
                 .content(json(Map.of("name", name, "email", email, "password", PASSWORD))))
                 .andExpect(status().isOk());
 
-        Optional<User> u = userRepository.findByEmail(email);
-        assertThat(u).isPresent();
-        String token = u.get().getVerificationToken();
+        assertThat(userRepository.findByEmail(email)).isPresent();
+        // DB stores only the token hash; capture the RAW token from the verification email.
+        ArgumentCaptor<String> tokenCaptor = ArgumentCaptor.forClass(String.class);
+        verify(emailService).sendVerificationEmail(eq(email), anyString(), tokenCaptor.capture());
+        String token = tokenCaptor.getValue();
         assertThat(token).isNotBlank();
 
         mockMvc.perform(get("/auth/verify-email").param("token", token))

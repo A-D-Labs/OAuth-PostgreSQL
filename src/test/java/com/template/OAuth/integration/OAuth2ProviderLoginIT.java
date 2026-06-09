@@ -23,8 +23,8 @@ import static org.mockito.Mockito.when;
 /**
  * Exercises the heart of OAuth provider login — {@link UserService#saveUser} — for every
  * supported provider, against the real PostgreSQL + Flyway schema. This is the flow the
- * OAuth2SuccessHandler / OAuth2UserService delegate to once a provider has authenticated
- * the user, and it had zero coverage before. Running it on Postgres also validates that
+ * OAuth2SuccessHandler delegates to once a provider has authenticated the user, and it had
+ * zero coverage before. Running it on Postgres also validates that
  * the AuthProvider enum column and the provider-id columns round-trip through the rewritten
  * V1 schema.
  */

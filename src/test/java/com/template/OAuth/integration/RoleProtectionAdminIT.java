@@ -6,9 +6,11 @@ import com.template.OAuth.dto.EmailRegistrationRequest;
 import com.template.OAuth.entities.User;
 import com.template.OAuth.enums.Role;
 import com.template.OAuth.repositories.UserRepository;
+import com.template.OAuth.service.EmailService;
 import com.template.OAuth.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,11 +19,15 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockCookie;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -46,6 +52,10 @@ class RoleProtectionAdminIT extends BaseIntegrationTest {
         @Autowired
         private UserService userService;
 
+        // Mock verification email so we can capture the RAW token (DB stores only its hash).
+        @MockitoBean
+        private EmailService emailService;
+
         private String email;
         private final String password = "OrigPassw0rd!";
 
@@ -69,9 +79,10 @@ class RoleProtectionAdminIT extends BaseIntegrationTest {
                                                 .content(objectMapper.writeValueAsString(regReq)))
                                 .andExpect(status().isOk());
 
-                // 2) Verify email using token from DB
-                User created = userRepository.findByEmail(email).orElseThrow();
-                String token = created.getVerificationToken();
+                // 2) Verify email using the RAW token captured from the verification email
+                ArgumentCaptor<String> tokenCaptor = ArgumentCaptor.forClass(String.class);
+                verify(emailService).sendVerificationEmail(eq(email), anyString(), tokenCaptor.capture());
+                String token = tokenCaptor.getValue();
 
                 mockMvc.perform(get("/auth/verify-email").param("token", token))
                                 .andExpect(status().is3xxRedirection());

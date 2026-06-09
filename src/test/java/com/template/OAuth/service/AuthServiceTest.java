@@ -104,7 +104,9 @@ class AuthServiceTest {
         testRefreshToken = new RefreshToken();
         testRefreshToken.setId(1L);
         testRefreshToken.setUser(testUser);
-        testRefreshToken.setToken("test-refresh-token");
+        testRefreshToken.setToken("hashed-test-refresh-token");
+        // Raw token is what gets written to the cookie; the persisted 'token' holds its hash.
+        testRefreshToken.setRawToken("test-refresh-token");
         testRefreshToken.setExpiryDate(Instant.now().plusSeconds(3600));
 
         // Mock AppProperties nested structure
@@ -141,17 +143,19 @@ class AuthServiceTest {
     }
 
     @Test
-    void testRegisterUser_EmailAlreadyExists() {
-        // Arrange
+    void testRegisterUser_EmailAlreadyExists_isAntiEnumeration() {
+        // Arrange: an account already exists for this email.
         when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(testUser));
 
-        // Act & Assert
-        Exception exception = assertThrows(RuntimeException.class, () -> {
-            authService.registerUser(registrationRequest);
-        });
+        // Act: registration must not reveal that the email is taken — it returns the existing
+        // user so the controller's response is indistinguishable from a fresh signup.
+        User result = authService.registerUser(registrationRequest);
 
-        assertEquals("Email is already in use", exception.getMessage());
+        // Assert: existing account untouched, no new persistence, no verification email.
+        assertNotNull(result);
+        assertEquals("test@example.com", result.getEmail());
         verify(userRepository, never()).save(any(User.class));
+        verify(emailService, never()).sendVerificationEmail(anyString(), anyString(), anyString());
     }
 
     @Test

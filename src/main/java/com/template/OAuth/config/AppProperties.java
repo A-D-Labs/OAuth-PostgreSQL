@@ -29,6 +29,15 @@ public class AppProperties {
         private Verification verification = new Verification();
         private PasswordReset passwordReset = new PasswordReset();
 
+        /**
+         * Whether the app sits behind a trusted reverse proxy/load balancer that sets a
+         * correct X-Forwarded-For header. Leave false unless every request is guaranteed to
+         * pass through such a proxy: when false, the client's real socket address is used for
+         * rate limiting, so a client cannot spoof XFF to dodge throttling. Set true only in
+         * environments where an upstream proxy strips and rewrites XFF.
+         */
+        private boolean trustProxy = false;
+
         @Getter
         @Setter
         public static class Cookie {

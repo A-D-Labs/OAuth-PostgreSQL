@@ -14,8 +14,16 @@ public class RefreshToken {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** SHA-256 hash of the opaque refresh token. The raw token is never stored. */
     @Column(unique = true, nullable = false)
     private String token;
+
+    /**
+     * The raw (unhashed) token, held only in memory for the request that creates or rotates
+     * it so it can be written to the client cookie. Never persisted.
+     */
+    @Transient
+    private String rawToken;
 
     @OneToOne
     @JoinColumn(name = "user_id", referencedColumnName = "id", nullable = false)

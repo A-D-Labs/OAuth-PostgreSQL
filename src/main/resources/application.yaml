@@ -63,7 +63,10 @@ server:
 app:
   security:
     jwt:
-      secret: ${JWT_SECRET:defaultsecretkey12345678901234567890}
+      # No default: the app fails fast at startup (JwtTokenProvider.validateSecret) if this
+      # is blank or under 32 bytes. Set JWT_SECRET in every real environment. The dev profile
+      # supplies a clearly-insecure local default so `mvnw spring-boot:run` still works.
+      secret: ${JWT_SECRET:}
       expiration: 3600000         # 1 hour
     refresh:
       expiration: 604800000       # 7 days
@@ -71,6 +74,9 @@ app:
       expirationHours: 24
     passwordReset:
       expirationHours: 1
+    # Only trust X-Forwarded-For for client-IP/rate-limiting when behind a trusted proxy.
+    # Default false so a direct client cannot spoof XFF to evade auth throttling.
+    trust-proxy: ${TRUST_PROXY:false}
     cookie:
       secure: false               # overridden in prod
       sameSite: Lax               # normalized case

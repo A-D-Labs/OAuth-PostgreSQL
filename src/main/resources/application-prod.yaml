@@ -16,6 +16,9 @@ spring:
 # Production environment settings
 app:
   security:
+    # Prod sits behind a TLS-terminating reverse proxy/load balancer that sets a trustworthy
+    # X-Forwarded-For. Only enable this where such a proxy strips client-supplied XFF.
+    trust-proxy: ${TRUST_PROXY:true}
     cookie:
       secure: true            # required when SameSite=None
       sameSite: None          # cross-site cookie (frontend on different domain)

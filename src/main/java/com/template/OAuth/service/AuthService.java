@@ -13,6 +13,7 @@ import com.template.OAuth.enums.Role;
 import com.template.OAuth.repositories.UserRepository;
 import com.template.OAuth.security.UserPrincipal;
 import com.template.OAuth.util.CookieUtil;
+import com.template.OAuth.util.TokenHasher;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -63,9 +64,12 @@ public class AuthService {
 
     @Transactional
     public User registerUser(EmailRegistrationRequest registrationRequest) {
-        // Check if user already exists
-        if (userRepository.findByEmail(registrationRequest.getEmail()).isPresent()) {
-            throw new RuntimeException("Email is already in use");
+        // Anti-enumeration: if the email is already taken, return the existing user without
+        // touching it or sending mail. The caller responds identically to a fresh signup, so
+        // an attacker cannot tell registered emails apart from unregistered ones.
+        Optional<User> existing = userRepository.findByEmail(registrationRequest.getEmail());
+        if (existing.isPresent()) {
+            return existing.get();
         }
 
         // Create new user
@@ -76,9 +80,9 @@ public class AuthService {
         user.setPrimaryProvider(AuthProvider.LOCAL);
         user.setEnabled(false); // Not enabled until email verification
 
-        // Generate verification token
+        // Generate verification token; store only its hash, email the raw value.
         String token = generateToken();
-        user.setVerificationToken(token);
+        user.setVerificationToken(TokenHasher.sha256Hex(token));
         user.setVerificationTokenExpiry(Instant.now().plusSeconds(
                 appProperties.getSecurity().getVerification().getExpirationHours() * 3600L));
 
@@ -107,7 +111,7 @@ public class AuthService {
 
     @Transactional
 public boolean verifyEmail(String token) {
-    var opt = userRepository.findByVerificationToken(token);
+    var opt = userRepository.findByVerificationToken(TokenHasher.sha256Hex(token));
     if (opt.isEmpty()) {
         // Token not found — either already used (user enabled & token cleared) or invalid
         // If you want to be extra nice, you can return false here and let controller decide the message.
@@ -142,16 +146,20 @@ public boolean verifyEmail(String token) {
 
     @Transactional
     public void resendVerificationEmail(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
+        // Anti-enumeration: silently succeed for unknown or already-verified accounts so the
+        // response can't be used to probe which emails exist or are verified.
+        Optional<User> userOpt = userRepository.findByEmail(email);
+        if (userOpt.isEmpty()) {
+            return;
+        }
+        User user = userOpt.get();
         if (user.isEnabled()) {
-            throw new RuntimeException("User is already verified");
+            return;
         }
 
-        // Generate new verification token
+        // Generate new verification token; store only its hash, email the raw value.
         String token = generateToken();
-        user.setVerificationToken(token);
+        user.setVerificationToken(TokenHasher.sha256Hex(token));
         user.setVerificationTokenExpiry(Instant.now().plusSeconds(
                 appProperties.getSecurity().getVerification().getExpirationHours() * 3600L));
 
@@ -176,9 +184,9 @@ public boolean verifyEmail(String token) {
         if (userOpt.isPresent()) {
             User user = userOpt.get();
 
-            // Generate password reset token
+            // Generate password reset token; store only its hash, email the raw value.
             String token = generateToken();
-            user.setPasswordResetToken(token);
+            user.setPasswordResetToken(TokenHasher.sha256Hex(token));
             user.setPasswordResetTokenExpiry(Instant.now().plusSeconds(
                     appProperties.getSecurity().getPasswordReset().getExpirationHours() * 3600L));
 
@@ -198,7 +206,7 @@ public boolean verifyEmail(String token) {
 
     @Transactional
     public boolean resetPassword(String token, String newPassword) {
-        User user = userRepository.findByPasswordResetToken(token)
+        User user = userRepository.findByPasswordResetToken(TokenHasher.sha256Hex(token))
                 .orElseThrow(() -> new RuntimeException("Invalid password reset token"));
 
         // Check if token is expired
@@ -268,7 +276,7 @@ public boolean verifyEmail(String token) {
             CookieUtil.addCookie(
                     response,
                     "refresh_token",
-                    refreshToken.getToken(),
+                    refreshToken.getRawToken(),
                     "/refresh-token",
                     refreshTtlSeconds,
                     appProperties
