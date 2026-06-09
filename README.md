@@ -37,10 +37,9 @@ A comprehensive Spring Boot template for implementing OAuth 2.0 authentication w
     - Audit logging
 
 - **DevOps Ready**:
-    - Docker support with multi-stage builds
+    - Daemonless container images via Jib (no Dockerfile)
     - Environment-specific configurations (dev, test, pat, prod)
-    - Azure DevOps pipeline configuration
-    - Infrastructure as Code with ARM templates
+    - Docker Compose stacks for each environment
 
 ## 🚀 Getting Started
 
@@ -101,14 +100,15 @@ A comprehensive Spring Boot template for implementing OAuth 2.0 authentication w
    ./mvnw spring-boot:run -Dspring.profiles.active=dev
    ```
 
-   With Docker:
+   With Docker (build the Jib image first, then bring the stack up):
    ```bash
-   docker-compose -f docker/compose/docker-compose.yml -f docker/compose/docker-compose.dev.yml up
+   ./mvnw -DskipTests package jib:dockerBuild
+   SPRING_PROFILES_ACTIVE=dev docker-compose -f docker/compose/docker-compose.yml -f docker/compose/docker-compose.dev.yml up
    ```
 
-   Or use the provided script:
+   Or use the provided script (builds the image and starts the stack):
    ```bash
-   ./docker/scripts/switch-env.sh dev
+   ./docker/scripts/deploy.sh dev
    ```
 
 6. **Access the application**:
@@ -240,46 +240,53 @@ The template uses PostgreSQL by default (schema managed by Flyway migrations):
 
 ## 🐳 Docker Deployment
 
-The project includes comprehensive Docker support:
+The application image is built **daemonlessly by Jib** (no Dockerfile). Compose then runs
+that image alongside PostgreSQL (and Redis). Build the image once, then bring an
+environment up:
 
 ```bash
-# Development environment
-docker-compose -f docker/compose/docker-compose.yml -f docker/compose/docker-compose.dev.yml up -d
+# Build the image into the local Docker daemon
+./mvnw -DskipTests package jib:dockerBuild
 
-# Test environment
-docker-compose -f docker/compose/docker-compose.yml -f docker/compose/docker-compose.test.yml up
+# Development environment
+SPRING_PROFILES_ACTIVE=dev docker-compose -f docker/compose/docker-compose.yml -f docker/compose/docker-compose.dev.yml up -d
 
 # PAT (Pre-production) environment
-docker-compose -f docker/compose/docker-compose.yml -f docker/compose/docker-compose.pat.yml up -d
+SPRING_PROFILES_ACTIVE=pat docker-compose -f docker/compose/docker-compose.yml -f docker/compose/docker-compose.pat.yml up -d
 
 # Production environment
-docker-compose -f docker/compose/docker-compose.yml -f docker/compose/docker-compose-prod.yml up -d
+SPRING_PROFILES_ACTIVE=prod docker-compose -f docker/compose/docker-compose.yml -f docker/compose/docker-compose.prod.yml up -d
 ```
 
-## ☁️ Azure Deployment
+Or use the helper, which builds the Jib image and brings the stack up for you:
 
-The template includes Azure DevOps pipeline configurations and infrastructure code:
+```bash
+docker/scripts/deploy.sh dev   # or pat | prod
+docker/scripts/deploy.sh test  # spins up the test DB and runs ./mvnw verify
+```
 
-1. **ARM Template**:
-    - `azure/arm-template.json` defines the infrastructure
-    - Run `azure/deploy-infrastructure.ps1` to provision resources
+> `docker-compose.test.yml` only provisions the PostgreSQL the test suite runs against
+> (on `localhost:5433`); the suite itself runs on the host via `./mvnw verify`.
 
-2. **Azure DevOps Pipeline**:
-    - `azure-pipelines.yml` provides CI/CD configurations
-    - Run `azure/setup-azure-devops-variables.ps1` to set up pipeline variables
+## 🚦 CI/CD
 
-3. **Container Registry**:
-    - Use `azure/build-and-push-image.ps1` to build and push Docker images
+There is **no CI/CD pipeline** in this template by design — see
+`docs/adr/0002-no-cicd-for-now.md`. When a project adopts this template and wires up CI,
+note that the integration tests require a reachable PostgreSQL (a CI service container on
+`localhost:5433`, or `TEST_DB_URL` pointed elsewhere); they do not self-provision a
+database (see `docs/adr/0003-testcontainers-postgres-for-tests.md`).
 
 ## 🧪 Testing
 
 The project includes a comprehensive test suite:
 
-- Unit tests for services and components (Surefire — no database needed)
-- Integration tests (`*IT`) for end-to-end functionality (Failsafe — run a real PostgreSQL)
+- Unit tests for services and components (pure mocks — `*Test`)
+- Spring slice/context tests that load a Spring context (`*Test`/`*Tests`)
+- Integration tests for end-to-end functionality (`*IT`)
 - Security tests for authentication flows
 
-Integration tests run against a **real PostgreSQL**, not H2 or Testcontainers (see
+All Spring-backed tests (the context/slice tests and the `*IT` end-to-end tests) run
+against a **real PostgreSQL**, not H2 or Testcontainers (see
 `docs/adr/0003-testcontainers-postgres-for-tests.md`). Start a throwaway test DB first:
 
 ```bash
@@ -292,13 +299,13 @@ docker run -d --name oauth-pg-test \
 The `test` profile defaults to `jdbc:postgresql://localhost:5433/oauth_template_test`
 (override with `TEST_DB_URL` / `TEST_DB_USERNAME` / `TEST_DB_PASSWORD`).
 
-Run unit tests only (no DB required):
+Run the Surefire tests (unit + Spring slice/context tests):
 
 ```bash
 ./mvnw test
 ```
 
-Run the full suite including integration tests (requires the test DB above):
+Run the full suite, including the `*IT` integration tests via Failsafe:
 
 ```bash
 ./mvnw verify
@@ -326,7 +333,7 @@ The API is grouped into functional areas:
 - Spring Boot and Spring Security
 - OAuth 2.0 providers
 - Docker and Docker Compose
-- Azure DevOps
+- PostgreSQL and Flyway
 
 ---
 
@@ -336,4 +343,4 @@ The API is grouped into functional areas:
 - OAuth client secrets should be stored securely
 - Production deployments should use HTTPS exclusively
 - Environment files (`.env.*`) should NEVER be committed to version control
-- Use secrets management services (like Azure Key Vault) for production deployments
+- Use a secrets management service (e.g. HashiCorp Vault, AWS Secrets Manager) for production deployments
