@@ -314,6 +314,8 @@ public class UserService {
                 return userRepository.findByGoogleId(providerId);
             case SPOTIFY:
                 return userRepository.findBySpotifyId(providerId);
+            case APPLE:
+                return userRepository.findByAppleId(providerId);
             case SOUNDCLOUD:
                 return userRepository.findBySoundcloudId(providerId);
             default:
