@@ -7,10 +7,10 @@ A production-shaped **Spring Boot 3.4 / Java 21** authentication backend. It iss
    Spotify, Apple, and SoundCloud are scaffolded (see [Adding more OAuth providers](#adding-more-oauth-providers)).
 2. **Email + password**, with email verification and password reset.
 
-On top of auth it ships role-based access control, refresh-token rotation, rate limiting,
-audit logging, internationalized emails, Actuator/Prometheus metrics, and Swagger docs.
-Persistence is **PostgreSQL** with a Flyway-managed schema validated against the JPA
-entities (`ddl-auto: validate`).
+On top of auth it ships role-based access control, refresh-token rotation **with reuse
+detection**, rate limiting, audit logging, internationalized emails, Actuator/Prometheus
+metrics, and Swagger docs. Persistence is **PostgreSQL** with a Flyway-managed schema validated
+against the JPA entities (`ddl-auto: validate`).
 
 > This is a **backend only** — there is no bundled UI. It expects a separate frontend
 > (default `http://localhost:3000`). After a successful OAuth login the backend sets auth
@@ -20,6 +20,7 @@ entities (`ddl-auto: validate`).
 
 ## Table of contents
 
+- [Features](#features)
 - [Architecture at a glance](#architecture-at-a-glance)
 - [Prerequisites](#prerequisites)
 - [Quick start (local dev)](#quick-start-local-dev)
@@ -28,6 +29,7 @@ entities (`ddl-auto: validate`).
 - [Adding more OAuth providers](#adding-more-oauth-providers)
 - [Email (verification & password reset)](#email-verification--password-reset)
 - [How authentication works](#how-authentication-works)
+- [Security model](#security-model)
 - [Roles & authorization](#roles--authorization)
 - [API surface](#api-surface)
 - [Running with Docker](#running-with-docker)
@@ -37,15 +39,70 @@ entities (`ddl-auto: validate`).
 
 ---
 
+## Features
+
+Everything below is implemented and covered by the test suite (unit + integration on a real
+PostgreSQL).
+
+### Authentication
+- **Google SSO** via OpenID Connect, wired and working out of the box.
+- **Email + password** registration with mandatory **email verification** before login.
+- **Password reset** by emailed, time-limited token.
+- **Resend verification** for unverified accounts.
+- Accounts created via email/password start **disabled** until verified.
+- Scaffolding (enum values, DB columns, env placeholders, user mapping) for **Spotify, Apple,
+  and SoundCloud** as a documented extension point.
+
+### Tokens & sessions
+- **Stateless JWT** access tokens (HS256) delivered in an **HttpOnly** cookie.
+- **Opaque refresh tokens** (64 bytes of `SecureRandom`) in a separate path-scoped HttpOnly cookie.
+- **Refresh-token rotation** — every refresh mints a new access token and a new refresh token.
+- **Refresh-token reuse detection** — replaying an already-rotated token is treated as theft:
+  the entire token family is revoked and an audit event is recorded, forcing re-authentication.
+- **Logout** clears both cookies and revokes the user's refresh tokens.
+
+### Security hardening
+- **Tokens hashed at rest** — refresh, email-verification, and password-reset tokens are stored
+  as SHA-256 hashes; the raw value only ever reaches the user (cookie/email).
+- **Fail-fast JWT secret** — the app refuses to start if `JWT_SECRET` is blank, the known
+  insecure default, or shorter than 32 bytes. Prod has **no** default.
+- **Per-IP authentication throttling** (Bucket4j): 5 failures → temporary block with escalating
+  cost; optionally Redis-backed.
+- **Proxy-aware client IP** — `X-Forwarded-For` is trusted only when `trust-proxy` is enabled
+  (off in dev, on in prod behind a TLS-terminating proxy), preventing XFF spoofing of the throttle.
+- **Anti-enumeration** — register, resend-verification, and forgot-password return identical
+  responses whether or not the account exists.
+- **Typed, consistent error handling** — a typed exception hierarchy maps to correct HTTP status
+  codes and localized messages; internal exception text is never leaked to clients.
+- **BCrypt** (strength 12) password hashing.
+- **CSRF** protection (cookie-based) on session-style routes; **CORS** locked to configured origins;
+  **Content-Security-Policy** header; stateless sessions; **401** (not a redirect) on unauthenticated API hits.
+
+### Authorization
+- **Role-based access control** with four roles (`USER`, `ADMIN`, `MODERATOR`, `PREMIUM`).
+- URL-level rules in `SecurityConfig`, plus auto-grant of `ADMIN` to configured emails.
+- Authorities are **re-loaded from the database on every request**, so a revoked role takes
+  effect immediately rather than living in a stale JWT claim.
+
+### Platform & operations
+- **PostgreSQL** persistence with a **Flyway**-managed schema, validated against JPA entities.
+- **Audit logging** of auth events via AOP, queryable by admins.
+- **Actuator + Prometheus** metrics and custom health indicators (DB, auth).
+- **Internationalization** of API messages and emails (English, German, Spanish, French).
+- **Swagger / OpenAPI** live API docs.
+- **Daemonless container images via Jib** (no Dockerfile) + Docker Compose stacks per environment.
+
+---
+
 ## Architecture at a glance
 
 | Concern            | Choice                                                                 |
 |--------------------|------------------------------------------------------------------------|
 | Language / runtime | Java 21                                                                |
 | Framework          | Spring Boot 3.4.3 (Web, Security, OAuth2 Client, Data JPA, Mail, Actuator) |
-| Database           | PostgreSQL 14+ (schema via Flyway, `V1__init_schema.sql`)              |
+| Database           | PostgreSQL 14+ (schema via Flyway, `V1__init_schema.sql`, `V2__refresh_token_reuse_detection.sql`) |
 | Migrations         | Flyway (`flyway-database-postgresql`)                                   |
-| Tokens             | JWT (HS256) access + opaque refresh tokens, both stored in HttpOnly cookies |
+| Tokens             | JWT (HS256) access + opaque refresh tokens in HttpOnly cookies; **hashed (SHA-256) at rest** |
 | Rate limiting      | Bucket4j (per-IP), optionally backed by Redis                          |
 | Image build        | Jib (daemonless, no Dockerfile)                                        |
 | API docs           | springdoc-openapi (Swagger UI)                                         |
@@ -92,9 +149,13 @@ Then open:
 - Swagger UI: <http://localhost:8080/swagger-ui.html>
 - Health: <http://localhost:8080/management/health>
 
-> Flyway runs `V1__init_schema.sql` on first boot to create the schema. Hibernate is set to
+> Flyway runs the migrations under `db/migration/` on first boot. Hibernate is set to
 > `validate`, so the app refuses to start if the entities and the migrated schema disagree —
 > this is intentional and catches drift early.
+
+> The **dev** profile ships a clearly-labelled insecure `JWT_SECRET` default so the app boots
+> without setup. **Prod has no default and fails fast** if `JWT_SECRET` is unset, blank, or
+> weak — set a strong, random value (`openssl rand -base64 48`).
 
 > ⚠️ **Never commit `.env.*` files** — they hold secrets. `.gitignore` already excludes them.
 
@@ -110,11 +171,12 @@ populate it. The most important variables:
 |----------|---------|---------|
 | `DB_URL` | JDBC URL to PostgreSQL | `jdbc:postgresql://localhost:5432/oauth_template` |
 | `DB_USERNAME` / `DB_PASSWORD` | DB credentials | `postgres` / `postgres` |
-| `JWT_SECRET` | HS256 signing key — **min 32 chars**, random | `openssl rand -base64 48` |
+| `JWT_SECRET` | HS256 signing key — **min 32 bytes**, random; **required in prod** | `openssl rand -base64 48` |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth client | from Google Cloud Console |
 | `ADMIN_EMAILS` | Comma-separated emails auto-granted `ADMIN` on first login | `you@example.com` |
 | `FRONTEND_URL` | Allowed CORS origin + OAuth success redirect base | `http://localhost:3000` |
 | `LOGIN_SUCCESS_REDIRECT_URL` | Path appended to `FRONTEND_URL` after OAuth login | `/home` |
+| `TRUST_PROXY` | Trust `X-Forwarded-For` for client IP (set only behind a trusted proxy) | `false` (dev) / `true` (prod) |
 | `EMAIL_HOST` / `EMAIL_PORT` | SMTP server | `sandbox.smtp.mailtrap.io` / `587` |
 | `EMAIL_USERNAME` / `EMAIL_PASSWORD` | SMTP credentials | — |
 | `EMAIL_FROM_ADDRESS` / `EMAIL_FROM_NAME` | "From" header on outgoing mail | `no-reply@yourdomain.com` |
@@ -122,7 +184,8 @@ populate it. The most important variables:
 | `REDIS_HOST` / `REDIS_PORT` | Optional Redis for rate limiting | `localhost` / `6379` |
 | `SERVER_PORT` | HTTP port | `8080` |
 
-Token lifetimes and cookie behavior are set per profile (not via env):
+Token lifetimes, cookie behavior, and proxy trust are set per profile (not via env, except
+`TRUST_PROXY`):
 
 | Setting | dev | prod |
 |---------|-----|------|
@@ -131,6 +194,7 @@ Token lifetimes and cookie behavior are set per profile (not via env):
 | Cookie `Secure` | `false` | `true` |
 | Cookie `SameSite` | `Lax` | `None` (cross-site) |
 | Cookie domain | (none) | `.yourdomain.com` |
+| Trust `X-Forwarded-For` | `false` | `true` |
 
 ---
 
@@ -195,9 +259,10 @@ Email/password accounts are created **disabled** and must verify before they can
 - **Forgot password** → `POST /auth/forgot-password` emails a reset link.
 - **Reset** → `POST /auth/reset-password` with the token + new password.
 
-SMTP is configured via `spring.mail.*` (the `EMAIL_*` env vars). The dev profile defaults to
-**Mailtrap's sandbox** so you can inspect mail without sending real messages. Email subjects
-and bodies are internationalized (`src/main/resources/i18n/` + Thymeleaf templates under
+Verification and reset tokens are emailed in raw form but **stored only as SHA-256 hashes**, and
+they expire. SMTP is configured via `spring.mail.*` (the `EMAIL_*` env vars). The dev profile
+defaults to **Mailtrap's sandbox** so you can inspect mail without sending real messages. Email
+subjects and bodies are internationalized (`src/main/resources/i18n/` + Thymeleaf templates under
 `templates/email/`).
 
 ---
@@ -211,19 +276,39 @@ Both login paths converge on the same token model:
 2. The backend issues a short-lived **JWT access token** (cookie `jwt`, path `/`) and an
    **opaque refresh token** (cookie `refresh_token`, path `/refresh-token`). Both are
    **HttpOnly**; `Secure`/`SameSite`/`Domain` follow the active profile.
-3. **Authenticated requests** carry the `jwt` cookie; `JwtAuthenticationFilter` validates it
-   and populates the security context.
+3. **Authenticated requests** carry the `jwt` cookie; `JwtAuthenticationFilter` validates it,
+   then re-loads the user's roles from the database to populate the security context.
 4. **Refresh** — when the access token expires, `POST /refresh-token` (sending the
-   `refresh_token` cookie) mints a new access token and rotates the refresh token.
+   `refresh_token` cookie) mints a new access token and **rotates** the refresh token. Presenting
+   a token that has already been rotated away triggers **reuse detection** (see below).
 5. **Logout** — `POST /auth/logout` clears both cookies and revokes the user's refresh tokens.
 
-Other security defaults:
+---
 
+## Security model
+
+- **Tokens hashed at rest.** Refresh, email-verification, and password-reset tokens are persisted
+  as SHA-256 hashes and looked up by hash. A read-only database leak yields no usable tokens.
+- **Refresh-token rotation + reuse detection.** Each row remembers the hash of the token most
+  recently rotated away. If a presented token matches that prior hash (a replay of a consumed
+  token — the signature of a stolen refresh token), the **whole token family is revoked**, an
+  `ACCESS_DENIED` audit event is logged, and the caller gets `401`. Both the attacker's rotated
+  token and the victim's are invalidated, forcing a fresh login.
+- **Fail-fast JWT secret.** Startup aborts if `JWT_SECRET` is blank, equals the known insecure
+  default, or is shorter than 32 bytes. Prod ships no default.
+- **Proxy-aware throttling.** The per-IP authentication throttle honours `X-Forwarded-For` only
+  when `trust-proxy` is enabled, and self-evicts stale entries. Use it only behind a proxy that
+  strips client-supplied XFF.
+- **Anti-enumeration.** `register`, `resend-verification`, and `forgot-password` produce identical
+  responses regardless of whether the account exists, so they can't be used to probe for emails.
+- **Consistent error handling.** A typed exception hierarchy maps each expected auth failure to the
+  correct HTTP status (`400` / `401` / `403`) and a localized message; anything unexpected is logged
+  server-side and returned as a generic message — internal exception text is never echoed.
 - **CSRF** protection is on (cookie-based), but **ignored** for `/auth/**`, `/oauth2/**`,
   `/login/oauth2/**`, and `/refresh-token` (token endpoints that don't rely on session cookies).
 - **CORS** allows only the origins in `app.cors.allowed-origins` (`FRONTEND_URL`).
-- Sessions are **stateless**; a Content-Security-Policy header is set.
-- Unauthenticated access to a protected endpoint returns **401** (no redirect to a login page).
+- Sessions are **stateless**; a Content-Security-Policy header is set; unauthenticated access to a
+  protected endpoint returns **401** (no redirect to a login page).
 
 ---
 
@@ -240,6 +325,9 @@ listed in `ADMIN_EMAILS` also gets `ADMIN` on first login. URL-level rules (from
 | `/api/premium/**` | `ADMIN` or `PREMIUM` |
 | `/api/user/**`, `/api/profile/**` | any authenticated user |
 | `/management/**` (except `/health`, `/info`) | `ADMIN` |
+
+Role authorities are re-read from the database on each request, so changing a user's roles takes
+effect on their next call without needing them to re-login.
 
 ---
 
@@ -328,13 +416,17 @@ docker run -d --name oauth-pg-test \
 ```
 
 The `test` profile defaults to `jdbc:postgresql://localhost:5433/oauth_template_test`
-(override with `TEST_DB_URL` / `TEST_DB_USERNAME` / `TEST_DB_PASSWORD`).
+(override with `TEST_DB_URL` / `TEST_DB_USERNAME` / `TEST_DB_PASSWORD`). Rate limiting is
+disabled in the test profile.
 
 ```bash
 ./mvnw test                         # unit + Spring slice/context tests (Surefire)
 ./mvnw verify                       # the above + *IT integration tests (Failsafe)
 ./mvnw test -Dtest=UserServiceTest  # a single test
 ```
+
+Coverage includes the full auth flows, role protection, refresh rotation, **refresh-token reuse
+detection**, and the email verification / password-reset journeys.
 
 `docker/scripts/deploy.sh test` provisions the test DB, runs `./mvnw verify`, and tears the
 DB down afterward.
@@ -343,13 +435,15 @@ DB down afterward.
 
 ## Production checklist
 
-- [ ] `JWT_SECRET` is strong, random (≥ 32 chars), and stored in a secrets manager
+- [ ] `JWT_SECRET` is strong, random (≥ 32 bytes), and stored in a secrets manager (prod fails fast without it)
 - [ ] `DB_*` point at a managed PostgreSQL with TLS (`sslmode=require`)
 - [ ] Cookies are `Secure` + `SameSite=None` and scoped to your domain (prod profile does this)
+- [ ] `TRUST_PROXY=true` only when the app sits behind a proxy that strips client-supplied `X-Forwarded-For`
 - [ ] Serve over HTTPS only; set the OAuth redirect URIs to your real API domain
 - [ ] `FRONTEND_URL` / CORS origins list only your real frontend origins
 - [ ] OAuth client secrets and SMTP credentials come from a secrets manager, not `.env` files
 - [ ] `.env.*` files are never committed
+- [ ] For multiple replicas, back the rate-limit state with Redis (per-instance state otherwise)
 
 > **CI/CD:** there is no pipeline in this template by design (see
 > `docs/adr/0002-no-cicd-for-now.md`). When you wire one up, the integration tests need a
@@ -367,15 +461,17 @@ src/main/java/com/template/OAuth/
 ├── dto/           Request/response DTOs
 ├── entities/      JPA entities (User, RefreshToken, AuditEvent, …)
 ├── enums/         Role, AuthProvider, AuditEventType, NotificationType, …
+├── exception/     Typed API exceptions (ApiException + auth error types)
 ├── repositories/  Spring Data JPA repositories
 ├── security/      JwtAuthenticationFilter, CustomUserDetailsService
 ├── service/       Auth, User, Email, Audit, Metrics, RateLimit, RefreshToken
 ├── aspect/        AOP auditing
 ├── filter/        Rate-limiting / auth filters
+├── util/          TokenHasher, CookieUtil
 └── health/        Custom health indicators
 src/main/resources/
 ├── application*.yaml   Per-profile config (dev / pat / prod / test)
-├── db/migration/       Flyway migrations (V1__init_schema.sql)
+├── db/migration/       Flyway migrations (V1__init_schema.sql, V2__refresh_token_reuse_detection.sql)
 ├── i18n/               messages_*.properties (en, de, es, fr)
 └── templates/email/    Thymeleaf email templates
 docs/adr/               Architecture Decision Records
