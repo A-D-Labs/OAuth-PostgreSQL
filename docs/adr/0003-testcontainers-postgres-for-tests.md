@@ -1,0 +1,3 @@
+# Integration tests run on Testcontainers-PostgreSQL, not H2
+
+The template's tests previously leaned on H2 (test-scoped) and a MySQL Testcontainer. Post-conversion, integration tests run against a **real PostgreSQL** via Testcontainers (`PostgreSQLContainer`), and the H2 dependency is dropped. Rationale: a template that advertises PostgreSQL must be tested on PostgreSQL — H2 silently diverges on enums, identity/sequence generation, casing, and type coercion, so green H2 tests give false confidence. The trade-off is that the test suite now **requires Docker** (slower, heavier in any future CI) in exchange for catching Postgres-specific schema/validation failures at test time — which is exactly what `ddl-auto: validate` against the rewritten `V1` migration depends on.
