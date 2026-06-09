@@ -10,6 +10,10 @@ import com.template.OAuth.enums.AuthProvider;
 import com.template.OAuth.enums.AuditEventType;
 import com.template.OAuth.enums.NotificationType;
 import com.template.OAuth.enums.Role;
+import com.template.OAuth.exception.AccountDisabledException;
+import com.template.OAuth.exception.InvalidCredentialsException;
+import com.template.OAuth.exception.InvalidTokenException;
+import com.template.OAuth.exception.TokenExpiredException;
 import com.template.OAuth.repositories.UserRepository;
 import com.template.OAuth.security.UserPrincipal;
 import com.template.OAuth.util.CookieUtil;
@@ -207,12 +211,12 @@ public boolean verifyEmail(String token) {
     @Transactional
     public boolean resetPassword(String token, String newPassword) {
         User user = userRepository.findByPasswordResetToken(TokenHasher.sha256Hex(token))
-                .orElseThrow(() -> new RuntimeException("Invalid password reset token"));
+                .orElseThrow(() -> new InvalidTokenException("Invalid password reset token"));
 
         // Check if token is expired
         if (user.getPasswordResetTokenExpiry() != null &&
             user.getPasswordResetTokenExpiry().isBefore(Instant.now())) {
-            throw new RuntimeException("Password reset token has expired");
+            throw new TokenExpiredException("Password reset token has expired");
         }
 
         // Update password
@@ -246,7 +250,8 @@ public boolean verifyEmail(String token) {
             // Get user from authentication
             UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
             User user = userRepository.findByEmail(userPrincipal.getUsername())
-                    .orElseThrow(() -> new RuntimeException("User not found"));
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Authenticated principal has no backing user row"));
 
             // Record login
             user.recordLogin();
@@ -295,14 +300,14 @@ public boolean verifyEmail(String token) {
                     "Login attempt with disabled account",
                     "Email: " + loginRequest.getEmail()
             );
-            throw new RuntimeException("Account is disabled, please verify your email");
+            throw new AccountDisabledException("Account is disabled; email not verified");
         } catch (BadCredentialsException e) {
             auditService.logEvent(
                     AuditEventType.LOGIN_FAILURE,
                     "Login attempt with invalid credentials",
                     "Email: " + loginRequest.getEmail()
             );
-            throw new RuntimeException("Invalid email or password");
+            throw new InvalidCredentialsException("Invalid email or password");
         }
     }
 

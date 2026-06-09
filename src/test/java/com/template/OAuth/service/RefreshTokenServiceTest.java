@@ -5,6 +5,8 @@ import com.template.OAuth.config.JwtTokenProvider;
 import com.template.OAuth.config.RefreshTokenProvider;
 import com.template.OAuth.entities.RefreshToken;
 import com.template.OAuth.entities.User;
+import com.template.OAuth.exception.InvalidRefreshTokenException;
+import com.template.OAuth.exception.TokenReuseException;
 import com.template.OAuth.repositories.RefreshTokenRepository;
 import com.template.OAuth.util.TokenHasher;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,6 +48,9 @@ class RefreshTokenServiceTest {
 
     @Mock
     private AppProperties.Security.Cookie cookieProps;
+
+    @Mock
+    private AuditService auditService;
 
     @InjectMocks
     private RefreshTokenService refreshTokenService;
@@ -168,10 +173,37 @@ class RefreshTokenServiceTest {
 
         when(refreshTokenRepository.findByToken(TokenHasher.sha256Hex("invalid-token")))
                 .thenReturn(Optional.empty());
+        when(refreshTokenRepository.findByPreviousToken(TokenHasher.sha256Hex("invalid-token")))
+                .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThrows(RuntimeException.class, () -> {
+        assertThrows(InvalidRefreshTokenException.class, () -> {
             refreshTokenService.refreshToken("invalid-token", response);
         });
+    }
+
+    @Test
+    void testRefreshToken_ReuseDetected_revokesFamily() {
+        // Arrange: a token that is no longer the current one, but matches the previously-rotated
+        // token recorded on the user's row — i.e. a replay of a consumed token.
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        String stolenHash = TokenHasher.sha256Hex("already-rotated-token");
+        RefreshToken family = new RefreshToken();
+        family.setUser(testUser);
+        family.setToken(TokenHasher.sha256Hex("attacker-current-token"));
+        family.setPreviousToken(stolenHash);
+        family.setExpiryDate(Instant.now().plusSeconds(3600));
+
+        when(refreshTokenRepository.findByToken(stolenHash)).thenReturn(Optional.empty());
+        when(refreshTokenRepository.findByPreviousToken(stolenHash)).thenReturn(Optional.of(family));
+
+        // Act & Assert: reuse is reported and the whole family is deleted.
+        assertThrows(TokenReuseException.class, () -> {
+            refreshTokenService.refreshToken("already-rotated-token", response);
+        });
+
+        verify(refreshTokenRepository, times(1)).delete(family);
+        verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
     }
 }

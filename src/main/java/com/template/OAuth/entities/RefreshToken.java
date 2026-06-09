@@ -25,6 +25,13 @@ public class RefreshToken {
     @Transient
     private String rawToken;
 
+    /**
+     * SHA-256 hash of the token most recently rotated away. If a presented token matches this
+     * (rather than {@link #token}), it has already been consumed — a reuse signal.
+     */
+    @Column(name = "previous_token")
+    private String previousToken;
+
     @OneToOne
     @JoinColumn(name = "user_id", referencedColumnName = "id", nullable = false)
     private User user;
