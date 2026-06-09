@@ -1,9 +1,10 @@
 # Pre-production Acceptance Testing (PAT) Environment Configuration
 spring:
   datasource:
-    url: jdbc:mysql://pat-db-server:3306/OAuthTemplate_PAT?useSSL=true&serverTimezone=UTC
+    url: jdbc:postgresql://pat-db-server:5432/OAuthTemplate_PAT?sslmode=require
     username: ${PAT_DB_USERNAME}
     password: ${PAT_DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
       ddl-auto: validate  # Validate the schema, don't change the database

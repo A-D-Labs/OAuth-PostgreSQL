@@ -1,11 +1,12 @@
 package com.template.OAuth.repositories;
 
-import com.template.OAuth.BaseIntegrationTest;
 import com.template.OAuth.entities.User;
 import com.template.OAuth.enums.AuthProvider;
 import com.template.OAuth.enums.Role;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.Instant;
@@ -13,13 +14,10 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.transaction.annotation.Transactional;
-
-@SpringBootTest
-@Transactional
+@DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("test")
-class UserRepositoryTest extends BaseIntegrationTest {
+class UserRepositoryTest {
 
     @Autowired
     private UserRepository userRepository;

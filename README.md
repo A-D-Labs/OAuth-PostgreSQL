@@ -48,9 +48,9 @@ A comprehensive Spring Boot template for implementing OAuth 2.0 authentication w
 
 ### Prerequisites
 
-- Java 23 or later
+- Java 21 or later
 - Maven 3.8 or later
-- MySQL 8.0 or later
+- PostgreSQL 14 or later
 - Docker and Docker Compose (optional)
 
 ### Setup Instructions
@@ -75,9 +75,9 @@ A comprehensive Spring Boot template for implementing OAuth 2.0 authentication w
 
 3. **Update environment variables**:
    Open `.env.dev` and update the following required variables:
-    - `DB_USERNAME`: Your MySQL username
-    - `DB_PASSWORD`: Your MySQL password
-    - `DB_URL`: Your MySQL connection URL
+    - `DB_USERNAME`: Your PostgreSQL username
+    - `DB_PASSWORD`: Your PostgreSQL password
+    - `DB_URL`: Your PostgreSQL connection URL (e.g. `jdbc:postgresql://localhost:5432/oauth_dev`)
     - `JWT_SECRET`: A strong, random secret key for JWT signing
     - `GOOGLE_CLIENT_ID`: Your Google OAuth client ID
     - `GOOGLE_CLIENT_SECRET`: Your Google OAuth client secret
@@ -169,14 +169,14 @@ For email verification and password reset functionality:
 
 ### Database Configuration
 
-The template uses MySQL by default:
+The template uses PostgreSQL by default (schema managed by Flyway migrations):
 
 1. **Development**:
-    - Create a local MySQL database
+    - Create a local PostgreSQL database
     - Update DB_* variables in your `.env.{environment}` file
 
 2. **Production**:
-    - Configure a production-grade MySQL database
+    - Configure a production-grade PostgreSQL database
     - Update DB_* variables in your `.env.{environment}` file
     - Consider securing your database connection
 

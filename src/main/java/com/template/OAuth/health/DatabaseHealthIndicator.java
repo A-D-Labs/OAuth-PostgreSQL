@@ -24,19 +24,19 @@ public class DatabaseHealthIndicator implements HealthIndicator {
 
             if (result != null && result == 1) {
                 return Health.up()
-                        .withDetail("database", "MySQL")
+                        .withDetail("database", "PostgreSQL")
                         .withDetail("status", "Available")
                         .build();
             } else {
                 return Health.down()
-                        .withDetail("database", "MySQL")
+                        .withDetail("database", "PostgreSQL")
                         .withDetail("status", "Unavailable")
                         .withDetail("error", "Database query returned unexpected or null result")
                         .build();
             }
         } catch (Exception e) {
             return Health.down()
-                    .withDetail("database", "MySQL")
+                    .withDetail("database", "PostgreSQL")
                     .withDetail("status", "Unavailable")
                     .withDetail("error", e.getMessage())
                     .build();

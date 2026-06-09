@@ -30,25 +30,23 @@ services:
       start_period: 60s
 
   db:
-    image: mysql:8.0
+    image: postgres:16-alpine
     container_name: oauth-db-${SPRING_PROFILES_ACTIVE:-dev}
     restart: unless-stopped
     env_file:
       - ../../.env.${SPRING_PROFILES_ACTIVE:-dev}
     environment:
-      - MYSQL_ROOT_PASSWORD=${DB_PASSWORD}
-      - MYSQL_DATABASE=oauth_${SPRING_PROFILES_ACTIVE:-dev}
-      - MYSQL_USER=${DB_USERNAME}
-      - MYSQL_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=oauth_${SPRING_PROFILES_ACTIVE:-dev}
+      - POSTGRES_USER=${DB_USERNAME}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
     volumes:
-      - oauth-mysql-data-${SPRING_PROFILES_ACTIVE:-dev}:/var/lib/mysql
-      - ../../docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - oauth-pg-data-${SPRING_PROFILES_ACTIVE:-dev}:/var/lib/postgresql/data
     ports:
-      - "${MYSQL_PORT:-3306}:3306"
+      - "${DB_PORT:-5432}:5432"
     networks:
       - oauth-network-${SPRING_PROFILES_ACTIVE:-dev}
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d oauth_${SPRING_PROFILES_ACTIVE:-dev}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -74,4 +72,4 @@ networks:
 volumes:
   oauth-uploads-${SPRING_PROFILES_ACTIVE:-dev}:
   oauth-logs-${SPRING_PROFILES_ACTIVE:-dev}:
-  oauth-mysql-data-${SPRING_PROFILES_ACTIVE:-dev}:
+  oauth-pg-data-${SPRING_PROFILES_ACTIVE:-dev}:
