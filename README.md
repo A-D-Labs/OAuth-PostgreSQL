@@ -1,293 +1,324 @@
-# OAuth 2.0 Authentication Template
+# OAuth 2.0 Authentication Backend (Spring Boot + PostgreSQL)
 
-A comprehensive Spring Boot template for implementing OAuth 2.0 authentication with multiple providers, including Google, Spotify, Apple, and SoundCloud. This template also includes email/password authentication with email verification.
+A production-shaped **Spring Boot 3.4 / Java 21** authentication backend. It issues JWTs
+(in HttpOnly cookies) for two login paths:
 
-## 🌟 Features
+1. **Social sign-in (SSO)** via OAuth2 / OpenID Connect — **Google works out of the box**;
+   Spotify, Apple, and SoundCloud are scaffolded (see [Adding more OAuth providers](#adding-more-oauth-providers)).
+2. **Email + password**, with email verification and password reset.
 
-- **Multiple Authentication Methods**:
-    - OAuth 2.0 integration with Google, Spotify, Apple, and SoundCloud
-    - Traditional email/password authentication
-    - Email verification for account activation
-    - Password reset functionality
+On top of auth it ships role-based access control, refresh-token rotation, rate limiting,
+audit logging, internationalized emails, Actuator/Prometheus metrics, and Swagger docs.
+Persistence is **PostgreSQL** with a Flyway-managed schema validated against the JPA
+entities (`ddl-auto: validate`).
 
-- **User Management**:
-    - Role-based access control (User, Admin, Moderator, Premium)
-    - Profile management with update history
-    - Notification preferences
-    - Theme preferences (Light/Dark/System)
-    - Language/Internationalization support (English, Spanish, French, German)
+> This is a **backend only** — there is no bundled UI. It expects a separate frontend
+> (default `http://localhost:3000`). After a successful OAuth login the backend sets auth
+> cookies and 302-redirects the browser to `FRONTEND_URL` + `/home`.
 
-- **Security Features**:
-    - JWT authentication with refresh tokens
-    - HTTP-only cookies for token storage
-    - Rate limiting to prevent brute force attacks
-    - Comprehensive audit logging
-    - CSRF protection
-    - XSS protection
+---
 
-- **API Documentation**:
-    - Swagger/OpenAPI integration
-    - Grouped API endpoints by functionality (Authentication, User Management, Administration)
+## Table of contents
 
-- **Monitoring and Metrics**:
-    - Spring Actuator integration
-    - Micrometer metrics
-    - Prometheus compatibility
-    - Custom health indicators
-    - Audit logging
+- [Architecture at a glance](#architecture-at-a-glance)
+- [Prerequisites](#prerequisites)
+- [Quick start (local dev)](#quick-start-local-dev)
+- [Configuration & environment variables](#configuration--environment-variables)
+- [Setting up Google SSO](#setting-up-google-sso)
+- [Adding more OAuth providers](#adding-more-oauth-providers)
+- [Email (verification & password reset)](#email-verification--password-reset)
+- [How authentication works](#how-authentication-works)
+- [Roles & authorization](#roles--authorization)
+- [API surface](#api-surface)
+- [Running with Docker](#running-with-docker)
+- [Testing](#testing)
+- [Production checklist](#production-checklist)
+- [Project structure](#project-structure)
 
-- **DevOps Ready**:
-    - Daemonless container images via Jib (no Dockerfile)
-    - Environment-specific configurations (dev, test, pat, prod)
-    - Docker Compose stacks for each environment
+---
 
-## 🚀 Getting Started
+## Architecture at a glance
 
-> ⚠️ **Security Note**: This template follows the `.env` approach for configuration. These files will contain sensitive information and should NEVER be committed to your Git repository. The `.gitignore` file is configured to exclude all `.env.*` files. Always create these files locally and securely share them with your team members outside of your version control system.
+| Concern            | Choice                                                                 |
+|--------------------|------------------------------------------------------------------------|
+| Language / runtime | Java 21                                                                |
+| Framework          | Spring Boot 3.4.3 (Web, Security, OAuth2 Client, Data JPA, Mail, Actuator) |
+| Database           | PostgreSQL 14+ (schema via Flyway, `V1__init_schema.sql`)              |
+| Migrations         | Flyway (`flyway-database-postgresql`)                                   |
+| Tokens             | JWT (HS256) access + opaque refresh tokens, both stored in HttpOnly cookies |
+| Rate limiting      | Bucket4j (per-IP), optionally backed by Redis                          |
+| Image build        | Jib (daemonless, no Dockerfile)                                        |
+| API docs           | springdoc-openapi (Swagger UI)                                         |
+| i18n               | English, German, Spanish, French                                       |
 
-### Prerequisites
+---
 
-- Java 21 or later
-- Maven 3.8 or later
-- PostgreSQL 14 or later
-- Docker and Docker Compose (optional)
+## Prerequisites
 
-### Setup Instructions
+- **Java 21+** (`JAVA_HOME` pointing at a JDK 21)
+- **PostgreSQL 14+**
+- **Maven** — use the bundled wrapper (`./mvnw`); no separate install required
+- **Docker & Docker Compose** (optional — for containerized runs and the test DB)
+- A **Google Cloud OAuth client** if you want social login (see below)
+- An **SMTP account** (e.g. Mailtrap for dev) if you want email verification / password reset
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/Nootje88/oauth.git
-   cd oauth-template
+---
+
+## Quick start (local dev)
+
+```bash
+# 1. Clone
+git clone https://github.com/Nootje88/OAuth-PostgreSQL.git
+cd OAuth-PostgreSQL
+
+# 2. Start a local PostgreSQL (or use your own)
+docker run -d --name oauth-pg \
+  -e POSTGRES_DB=oauth_template \
+  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres \
+  -p 5432:5432 postgres:16-alpine
+
+# 3. Create your dev env file from the template and fill it in
+cp .env.template .env.dev
+#   -> edit .env.dev: DB creds, GOOGLE_CLIENT_ID/SECRET, JWT_SECRET, EMAIL_* ...
+
+# 4. Load the env vars and run (dev profile is the default)
+set -a; source .env.dev; set +a
+./mvnw spring-boot:run
+```
+
+Then open:
+
+- API base: <http://localhost:8080>
+- Swagger UI: <http://localhost:8080/swagger-ui.html>
+- Health: <http://localhost:8080/management/health>
+
+> Flyway runs `V1__init_schema.sql` on first boot to create the schema. Hibernate is set to
+> `validate`, so the app refuses to start if the entities and the migrated schema disagree —
+> this is intentional and catches drift early.
+
+> ⚠️ **Never commit `.env.*` files** — they hold secrets. `.gitignore` already excludes them.
+
+---
+
+## Configuration & environment variables
+
+Configuration lives in `src/main/resources/application*.yaml` and is driven by environment
+variables. Copy `.env.template` per environment (`.env.dev`, `.env.pat`, `.env.prod`) and
+populate it. The most important variables:
+
+| Variable | Purpose | Example |
+|----------|---------|---------|
+| `DB_URL` | JDBC URL to PostgreSQL | `jdbc:postgresql://localhost:5432/oauth_template` |
+| `DB_USERNAME` / `DB_PASSWORD` | DB credentials | `postgres` / `postgres` |
+| `JWT_SECRET` | HS256 signing key — **min 32 chars**, random | `openssl rand -base64 48` |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth client | from Google Cloud Console |
+| `ADMIN_EMAILS` | Comma-separated emails auto-granted `ADMIN` on first login | `you@example.com` |
+| `FRONTEND_URL` | Allowed CORS origin + OAuth success redirect base | `http://localhost:3000` |
+| `LOGIN_SUCCESS_REDIRECT_URL` | Path appended to `FRONTEND_URL` after OAuth login | `/home` |
+| `EMAIL_HOST` / `EMAIL_PORT` | SMTP server | `sandbox.smtp.mailtrap.io` / `587` |
+| `EMAIL_USERNAME` / `EMAIL_PASSWORD` | SMTP credentials | — |
+| `EMAIL_FROM_ADDRESS` / `EMAIL_FROM_NAME` | "From" header on outgoing mail | `no-reply@yourdomain.com` |
+| `APP_BASE_URL` | Public base URL used in email links | `http://localhost:3000` |
+| `REDIS_HOST` / `REDIS_PORT` | Optional Redis for rate limiting | `localhost` / `6379` |
+| `SERVER_PORT` | HTTP port | `8080` |
+
+Token lifetimes and cookie behavior are set per profile (not via env):
+
+| Setting | dev | prod |
+|---------|-----|------|
+| Access token TTL | 1 hour | 30 minutes |
+| Refresh token TTL | 7 days | 30 days |
+| Cookie `Secure` | `false` | `true` |
+| Cookie `SameSite` | `Lax` | `None` (cross-site) |
+| Cookie domain | (none) | `.yourdomain.com` |
+
+---
+
+## Setting up Google SSO
+
+Google is the reference provider and is the one wired in `application.yaml` out of the box.
+
+1. Go to the [Google Cloud Console](https://console.cloud.google.com/) → **APIs & Services → Credentials**.
+2. Configure the **OAuth consent screen** (External is fine for testing).
+3. Create an **OAuth client ID** of type **Web application**.
+4. Add an **Authorized redirect URI**:
+   - Dev: `http://localhost:8080/login/oauth2/code/google`
+   - Prod: `https://your-api-domain.com/login/oauth2/code/google`
+   - (The path is `{baseUrl}/login/oauth2/code/{registrationId}` — Spring's standard callback.)
+5. Copy the **Client ID** and **Client Secret** into `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`.
+6. Restart the app. Your frontend starts the flow by sending the browser to:
+
+   ```
+   GET http://localhost:8080/oauth2/authorization/google
    ```
 
-2. **Create environment file**:
-   Copy the template environment file and customize it for each environment:
-   ```bash
-   cp .env.template .env.dev
-   # Also create for other environments as needed
-   # cp .env.template .env.test
-   # cp .env.template .env.pat
-   # cp .env.template .env.prod
-   ```
+   (The backend also exposes `GET /auth/login-url`, which returns this path.)
 
-   > ⚠️ **IMPORTANT**: All `.env.*` files contain sensitive information and should NEVER be committed to your repository. Make sure they are included in your `.gitignore` file!
+The Google registration requests the `openid`, `profile`, and `email` scopes — the user's
+email is the account key.
 
-3. **Update environment variables**:
-   Open `.env.dev` and update the following required variables:
-    - `DB_USERNAME`: Your PostgreSQL username
-    - `DB_PASSWORD`: Your PostgreSQL password
-    - `DB_URL`: Your PostgreSQL connection URL (e.g. `jdbc:postgresql://localhost:5432/oauth_dev`)
-    - `JWT_SECRET`: A strong, random secret key for JWT signing
-    - `GOOGLE_CLIENT_ID`: Your Google OAuth client ID
-    - `GOOGLE_CLIENT_SECRET`: Your Google OAuth client secret
-    - `EMAIL_USERNAME`: Your email service username
-    - `EMAIL_PASSWORD`: Your email service password
+---
 
-4. **Build the application**:
-   ```bash
-   ./mvnw clean package
-   ```
+## Adding more OAuth providers
 
-   Build a container image without a Docker daemon (via Jib):
-   ```bash
-   ./mvnw compile jib:dockerBuild   # build to the local Docker daemon
-   ./mvnw compile jib:build         # build & push to a registry
-   ```
+The codebase carries **scaffolding** for Spotify, Apple, and SoundCloud — the `AuthProvider`
+enum values, dedicated `*_id` columns on the `users` table, `.env.template` placeholders, and
+the `UserService` mapping all exist. **They are not active yet:** only Google has a
+`spring.security.oauth2.client.registration` entry, and the success flow currently assumes an
+**OpenID Connect** (OIDC) provider.
 
-5. **Run the application**:
-   With Maven:
-   ```bash
-   ./mvnw spring-boot:run -Dspring.profiles.active=dev
-   ```
+To enable another provider:
 
-   With Docker (build the Jib image first, then bring the stack up):
-   ```bash
-   ./mvnw -DskipTests package jib:dockerBuild
-   SPRING_PROFILES_ACTIVE=dev docker-compose -f docker/compose/docker-compose.yml -f docker/compose/docker-compose.dev.yml up
-   ```
+1. Add a `registration` (and, for non-Google providers, a `provider`) block under
+   `spring.security.oauth2.client` in `application.yaml`, wiring its `*_CLIENT_ID` /
+   `*_CLIENT_SECRET` env vars.
+2. **Google & Apple are OIDC** — they fit the existing `OidcUser` success handler. **Spotify
+   and SoundCloud are plain OAuth2** (no `openid` scope), so they additionally need a custom
+   `OAuth2UserService` to map their userinfo response onto a `User`; the current
+   `OAuth2SuccessHandler` only handles `OidcUser` principals.
+3. Add the provider's authorized redirect URI:
+   `{baseUrl}/login/oauth2/code/{registrationId}`.
 
-   Or use the provided script (builds the image and starts the stack):
-   ```bash
-   ./docker/scripts/deploy.sh dev
-   ```
+In short: Google is turn-key; the others are a deliberate extension point, not a finished
+integration.
 
-6. **Access the application**:
-    - API: http://localhost:8080
-    - Swagger UI: http://localhost:8080/swagger-ui.html
+---
 
-### Running in IntelliJ IDEA
+## Email (verification & password reset)
 
-To run the application in IntelliJ IDEA:
+Email/password accounts are created **disabled** and must verify before they can log in.
 
-1. Open Run/Debug Configurations (Run → Edit Configurations...)
-2. Click the + button and select "Spring Boot"
-3. Configure the following settings:
-    * **Name**: OAuth Template (Dev)
-    * **Main class**: `com.template.OAuth.OAuthApplication`
-    * **VM options**: `-Dspring.profiles.active=dev`
-    * **Working directory**: `$MODULE_WORKING_DIR$`
-    * **Use classpath of module**: Select the module with your application
-4. Click "Apply" then "OK"
-5. Run the configuration from the main toolbar
+- **Register** → `POST /auth/register` sends a verification email.
+- **Verify** → the link hits `GET /auth/verify-email?token=…`, enables the account, and
+  redirects to `APP_BASE_URL/login?verified=1`.
+- **Resend** → `POST /auth/resend-verification`.
+- **Forgot password** → `POST /auth/forgot-password` emails a reset link.
+- **Reset** → `POST /auth/reset-password` with the token + new password.
 
-## 🔧 Configuration
+SMTP is configured via `spring.mail.*` (the `EMAIL_*` env vars). The dev profile defaults to
+**Mailtrap's sandbox** so you can inspect mail without sending real messages. Email subjects
+and bodies are internationalized (`src/main/resources/i18n/` + Thymeleaf templates under
+`templates/email/`).
 
-### Environment Files
+---
 
-This project uses separate environment files for different deployment environments:
+## How authentication works
 
-- `.env.dev` - Development environment
-- `.env.test` - Testing environment
-- `.env.pat` - Pre-production acceptance testing
-- `.env.prod` - Production environment
+Both login paths converge on the same token model:
 
-Each environment file should be created manually based on the `.env.template` and should NOT be committed to your repository.
+1. **Authenticate** — either via OAuth2 (`/oauth2/authorization/google`) or
+   `POST /auth/email-login`.
+2. The backend issues a short-lived **JWT access token** (cookie `jwt`, path `/`) and an
+   **opaque refresh token** (cookie `refresh_token`, path `/refresh-token`). Both are
+   **HttpOnly**; `Secure`/`SameSite`/`Domain` follow the active profile.
+3. **Authenticated requests** carry the `jwt` cookie; `JwtAuthenticationFilter` validates it
+   and populates the security context.
+4. **Refresh** — when the access token expires, `POST /refresh-token` (sending the
+   `refresh_token` cookie) mints a new access token and rotates the refresh token.
+5. **Logout** — `POST /auth/logout` clears both cookies and revokes the user's refresh tokens.
 
-### OAuth Providers
+Other security defaults:
 
-To configure OAuth providers, you'll need to:
+- **CSRF** protection is on (cookie-based), but **ignored** for `/auth/**`, `/oauth2/**`,
+  `/login/oauth2/**`, and `/refresh-token` (token endpoints that don't rely on session cookies).
+- **CORS** allows only the origins in `app.cors.allowed-origins` (`FRONTEND_URL`).
+- Sessions are **stateless**; a Content-Security-Policy header is set.
+- Unauthenticated access to a protected endpoint returns **401** (no redirect to a login page).
 
-1. **Google OAuth**:
-    - Go to [Google Developer Console](https://console.developers.google.com/)
-    - Create a new project
-    - Set up OAuth consent screen
-    - Create OAuth credentials
-    - Set authorized redirect URIs to:
-        - `http://localhost:8080/login/oauth2/code/google` (for development)
-        - `https://your-production-domain.com/login/oauth2/code/google` (for production)
-    - Add the client ID and secret to your `.env.{environment}` file
+---
 
-2. **Other OAuth Providers**:
-    - Uncomment and configure the relevant sections in `application.yaml`
-    - Follow similar steps to create OAuth apps and obtain credentials
+## Roles & authorization
 
-### Email Configuration
+Four roles exist: `USER`, `ADMIN`, `MODERATOR`, `PREMIUM`. New users get `USER`; any email
+listed in `ADMIN_EMAILS` also gets `ADMIN` on first login. URL-level rules (from
+`SecurityConfig`):
 
-For email verification and password reset functionality:
+| Path prefix | Required role |
+|-------------|---------------|
+| `/api/admin/**` | `ADMIN` |
+| `/api/moderator/**` | `ADMIN` or `MODERATOR` |
+| `/api/premium/**` | `ADMIN` or `PREMIUM` |
+| `/api/user/**`, `/api/profile/**` | any authenticated user |
+| `/management/**` (except `/health`, `/info`) | `ADMIN` |
 
-1. **Gmail** (for development):
-    - Enable "Less secure apps" or create an App Password
-    - Update EMAIL_* variables in your `.env.{environment}` file
+---
 
-2. **SMTP Server** (for production):
-    - Configure your SMTP server details
-    - Update EMAIL_* variables in your `.env.{environment}` file
+## API surface
 
-### Database Configuration
+Public (no auth) endpoints are under `/auth/**`, plus Swagger and `/management/{health,info}`.
+Highlights — see Swagger UI for the full, live contract.
 
-The template uses PostgreSQL by default (schema managed by Flyway migrations):
+**Authentication — `/auth`**
 
-1. **Development**:
-    - Create a local PostgreSQL database
-    - Update DB_* variables in your `.env.{environment}` file
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/auth/register` | Register an email/password account |
+| GET  | `/auth/verify-email?token=` | Verify email, enable account |
+| POST | `/auth/resend-verification` | Resend verification email |
+| POST | `/auth/forgot-password` | Start password reset |
+| POST | `/auth/reset-password` | Complete password reset |
+| POST | `/auth/email-login` | Email/password login (sets cookies) |
+| POST | `/auth/logout` | Clear cookies, revoke refresh tokens |
+| GET  | `/auth/user` | Current user from the JWT |
+| GET  | `/auth/login-url` | Returns the Google OAuth start URL |
+| GET  | `/oauth2/authorization/google` | Begin Google SSO |
+| POST | `/refresh-token` | Rotate access token via refresh cookie |
 
-2. **Production**:
-    - Configure a production-grade PostgreSQL database
-    - Update DB_* variables in your `.env.{environment}` file
-    - Consider securing your database connection
+**User & profile**
 
-## 🧩 Project Structure
+| Method | Path | Role |
+|--------|------|------|
+| GET | `/api/user/profile` · `/api/user/{email}` | authenticated |
+| GET/PUT | `/api/profile` | authenticated (get / update profile) |
+| PUT | `/api/profile/notifications` | authenticated |
+| POST | `/api/profile/picture` | authenticated (multipart upload) |
+| GET | `/api/profile/history` | authenticated |
+| POST/GET | `/api/language/{change,available,current}` | authenticated |
 
-### Key Packages
+**Admin / moderator / premium**
 
-- `config`: Configuration classes for Spring, Security, JWT, etc.
-- `controller`: REST controllers for all endpoints
-- `dto`: Data Transfer Objects for API requests/responses
-- `entities`: JPA entities for database models
-- `enums`: Enum definitions (Role, AuthProvider, etc.)
-- `repositories`: Spring Data JPA repositories
-- `security`: Security-related classes (JWT, authentication)
-- `service`: Business logic services
-- `validation`: Validation utilities and error handlers
-- `aspect`: Aspect-oriented programming components (for auditing)
-- `filter`: HTTP filters (rate limiting, authentication)
-- `annotation`: Custom annotations
-- `health`: Custom health indicators
+| Method | Path | Role |
+|--------|------|------|
+| POST | `/api/admin/assign-role` · `/api/admin/remove-role` | `ADMIN` |
+| GET | `/api/admin/users` | `ADMIN`/`MODERATOR` |
+| GET | `/api/admin/audit/**` | `ADMIN` |
+| GET | `/api/admin/monitoring/**` | `ADMIN` |
+| GET | `/api/moderator/users` | `ADMIN`/`MODERATOR` |
+| GET | `/api/premium/content` | `ADMIN`/`PREMIUM` |
 
-### Key Features Implementation
+---
 
-#### Authentication and Security
+## Running with Docker
 
-- `JwtAuthenticationFilter`: Handles JWT authentication
-- `JwtTokenProvider`: Manages JWT token generation and validation
-- `RefreshTokenService`: Handles refresh tokens for JWT renewal
-- `AuthService`: Core authentication service
-- `SecurityConfig`: Security configuration
-
-#### User Management
-
-- `UserService`: User management functionality
-- `ProfileService`: User profile management
-- `ProfileController`: API endpoints for profile management
-
-#### Email Operations
-
-- `EmailService`: Sends verification and password reset emails
-- Email templates in `src/main/resources/templates/email/`
-
-#### Internationalization
-
-- `MessageService`: Access to internationalized messages
-- `LanguageController`: API for changing language
-- Message properties in `src/main/resources/i18n/`
-
-#### Audit and Metrics
-
-- `AuditService`: Records security and system events
-- `AuditAspect`: AOP for automatic method auditing
-- `MetricsService`: Records application metrics
-- `RateLimitService`: Enforces rate limiting policies
-
-## 🐳 Docker Deployment
-
-The application image is built **daemonlessly by Jib** (no Dockerfile). Compose then runs
-that image alongside PostgreSQL (and Redis). Build the image once, then bring an
-environment up:
+The application image is built **daemonlessly with Jib** (no Dockerfile). Build once, then
+bring an environment up with Compose:
 
 ```bash
 # Build the image into the local Docker daemon
-./mvnw -DskipTests package jib:dockerBuild
+./mvnw -DskipTests package jib:dockerBuild     # produces oauth-postgresql:<version> + :latest
 
-# Development environment
-SPRING_PROFILES_ACTIVE=dev docker-compose -f docker/compose/docker-compose.yml -f docker/compose/docker-compose.dev.yml up -d
-
-# PAT (Pre-production) environment
-SPRING_PROFILES_ACTIVE=pat docker-compose -f docker/compose/docker-compose.yml -f docker/compose/docker-compose.pat.yml up -d
-
-# Production environment
-SPRING_PROFILES_ACTIVE=prod docker-compose -f docker/compose/docker-compose.yml -f docker/compose/docker-compose.prod.yml up -d
+# Bring up the dev stack (app + PostgreSQL + Redis)
+SPRING_PROFILES_ACTIVE=dev docker-compose \
+  -f docker/compose/docker-compose.yml \
+  -f docker/compose/docker-compose.dev.yml up -d
 ```
 
-Or use the helper, which builds the Jib image and brings the stack up for you:
+Or use the helper, which builds the image and starts the stack:
 
 ```bash
-docker/scripts/deploy.sh dev   # or pat | prod
-docker/scripts/deploy.sh test  # spins up the test DB and runs ./mvnw verify
+docker/scripts/deploy.sh dev    # or: pat | prod
 ```
 
-> `docker-compose.test.yml` only provisions the PostgreSQL the test suite runs against
-> (on `localhost:5433`); the suite itself runs on the host via `./mvnw verify`.
+`pat` and `prod` use their respective `docker-compose.<env>.yml` overlays. To push to a
+registry instead of the local daemon, use `./mvnw compile jib:build`.
 
-## 🚦 CI/CD
+---
 
-There is **no CI/CD pipeline** in this template by design — see
-`docs/adr/0002-no-cicd-for-now.md`. When a project adopts this template and wires up CI,
-note that the integration tests require a reachable PostgreSQL (a CI service container on
-`localhost:5433`, or `TEST_DB_URL` pointed elsewhere); they do not self-provision a
-database (see `docs/adr/0003-testcontainers-postgres-for-tests.md`).
+## Testing
 
-## 🧪 Testing
-
-The project includes a comprehensive test suite:
-
-- Unit tests for services and components (pure mocks — `*Test`)
-- Spring slice/context tests that load a Spring context (`*Test`/`*Tests`)
-- Integration tests for end-to-end functionality (`*IT`)
-- Security tests for authentication flows
-
-All Spring-backed tests (the context/slice tests and the `*IT` end-to-end tests) run
-against a **real PostgreSQL**, not H2 or Testcontainers (see
-`docs/adr/0003-testcontainers-postgres-for-tests.md`). Start a throwaway test DB first:
+All Spring-backed tests (`*Test` slice/context tests and `*IT` end-to-end tests) run against
+a **real PostgreSQL** — not H2 or Testcontainers. Start a throwaway test DB on port **5433**
+first:
 
 ```bash
 docker run -d --name oauth-pg-test \
@@ -299,48 +330,57 @@ docker run -d --name oauth-pg-test \
 The `test` profile defaults to `jdbc:postgresql://localhost:5433/oauth_template_test`
 (override with `TEST_DB_URL` / `TEST_DB_USERNAME` / `TEST_DB_PASSWORD`).
 
-Run the Surefire tests (unit + Spring slice/context tests):
-
 ```bash
-./mvnw test
+./mvnw test                         # unit + Spring slice/context tests (Surefire)
+./mvnw verify                       # the above + *IT integration tests (Failsafe)
+./mvnw test -Dtest=UserServiceTest  # a single test
 ```
 
-Run the full suite, including the `*IT` integration tests via Failsafe:
-
-```bash
-./mvnw verify
-```
-
-Run a specific test:
-
-```bash
-./mvnw test -Dtest=UserServiceTest
-```
-
-## 🔍 API Documentation
-
-Swagger UI is available at:
-- Development: http://localhost:8080/swagger-ui.html
-- Production: https://your-domain.com/swagger-ui.html
-
-The API is grouped into functional areas:
-- Authentication (auth endpoints)
-- User Management (user and profile endpoints)
-- Administration (admin and moderator endpoints)
-
-## 🙏 Acknowledgements
-
-- Spring Boot and Spring Security
-- OAuth 2.0 providers
-- Docker and Docker Compose
-- PostgreSQL and Flyway
+`docker/scripts/deploy.sh test` provisions the test DB, runs `./mvnw verify`, and tears the
+DB down afterward.
 
 ---
 
-⚠️ **Security Notice**: Before using this template in production, ensure all security aspects are properly configured, especially:
-- JWT secrets should be strong, random, and kept secure
-- Database credentials should be properly protected
-- OAuth client secrets should be stored securely
-- Production deployments should use HTTPS exclusively
-- Environment files (`.env.*`) should NEVER be committed to version control
-- Use a secrets management service (e.g. HashiCorp Vault, AWS Secrets Manager) for production deployments
+## Production checklist
+
+- [ ] `JWT_SECRET` is strong, random (≥ 32 chars), and stored in a secrets manager
+- [ ] `DB_*` point at a managed PostgreSQL with TLS (`sslmode=require`)
+- [ ] Cookies are `Secure` + `SameSite=None` and scoped to your domain (prod profile does this)
+- [ ] Serve over HTTPS only; set the OAuth redirect URIs to your real API domain
+- [ ] `FRONTEND_URL` / CORS origins list only your real frontend origins
+- [ ] OAuth client secrets and SMTP credentials come from a secrets manager, not `.env` files
+- [ ] `.env.*` files are never committed
+
+> **CI/CD:** there is no pipeline in this template by design (see
+> `docs/adr/0002-no-cicd-for-now.md`). When you wire one up, the integration tests need a
+> reachable PostgreSQL on `localhost:5433` (or `TEST_DB_URL` pointed elsewhere) — they do not
+> self-provision a database (see `docs/adr/0003-testcontainers-postgres-for-tests.md`).
+
+---
+
+## Project structure
+
+```
+src/main/java/com/template/OAuth/
+├── config/        Security, JWT, OAuth2 handlers, CORS, properties
+├── controller/    REST endpoints (auth, profile, admin, premium, …)
+├── dto/           Request/response DTOs
+├── entities/      JPA entities (User, RefreshToken, AuditEvent, …)
+├── enums/         Role, AuthProvider, AuditEventType, NotificationType, …
+├── repositories/  Spring Data JPA repositories
+├── security/      JwtAuthenticationFilter, CustomUserDetailsService
+├── service/       Auth, User, Email, Audit, Metrics, RateLimit, RefreshToken
+├── aspect/        AOP auditing
+├── filter/        Rate-limiting / auth filters
+└── health/        Custom health indicators
+src/main/resources/
+├── application*.yaml   Per-profile config (dev / pat / prod / test)
+├── db/migration/       Flyway migrations (V1__init_schema.sql)
+├── i18n/               messages_*.properties (en, de, es, fr)
+└── templates/email/    Thymeleaf email templates
+docs/adr/               Architecture Decision Records
+docker/                 Compose stacks + deploy script (images via Jib)
+```
+
+See `docs/adr/` for the rationale behind the PostgreSQL conversion, the Jib image story, and
+the testing strategy.
