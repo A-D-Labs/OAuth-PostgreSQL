@@ -2,11 +2,8 @@ version: '3.8'
 
 services:
   app:
-    build:
-      context: ../..
-      dockerfile: docker/Dockerfile.${SPRING_PROFILES_ACTIVE:-dev}
-      args:
-        - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev}
+    # Image is built daemonlessly by Jib: `./mvnw -DskipTests package jib:dockerBuild`
+    image: oauth-postgresql:${OAUTH_IMAGE_TAG:-latest}
     container_name: oauth-app-${SPRING_PROFILES_ACTIVE:-dev}
     env_file:
       - ../../.env.${SPRING_PROFILES_ACTIVE:-dev}

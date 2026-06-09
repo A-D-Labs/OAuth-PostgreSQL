@@ -4,8 +4,6 @@ services:
   app:
     environment:
       - JAVA_OPTS=-Xms256m -Xmx512m -XX:+UseG1GC -Dspring.profiles.active=dev
-    volumes:
-      - ../../src:/app/src:ro  # Mount source code as read-only for easy development
     restart: unless-stopped
     deploy:
       resources:

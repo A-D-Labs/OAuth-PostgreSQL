@@ -166,6 +166,13 @@
       <artifactId>spring-security-test</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- Explicit so the Mockito inline-mock agent can be attached at launch (JDK 21+
+         deprecates dynamic self-attach; a future JDK will hard-block it). -->
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -192,6 +199,28 @@
         <artifactId>spring-boot-maven-plugin</artifactId>
       </plugin>
 
+      <!-- Resolves ${org.mockito:mockito-core:jar} for the test -javaagent below -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>properties</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- Attach the Mockito agent explicitly (no dynamic self-attach) -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <argLine>-javaagent:${org.mockito:mockito-core:jar}</argLine>
+        </configuration>
+      </plugin>
+
       <!-- Daemonless container image build (replaces Dockerfile-based packaging) -->
       <plugin>
         <groupId>com.google.cloud.tools</groupId>
@@ -202,7 +231,10 @@
             <image>eclipse-temurin:21-jre</image>
           </from>
           <to>
-            <image>${project.artifactId}:${project.version}</image>
+            <image>oauth-postgresql:${project.version}</image>
+            <tags>
+              <tag>latest</tag>
+            </tags>
           </to>
           <container>
             <ports>
@@ -216,6 +248,9 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-failsafe-plugin</artifactId>
+        <configuration>
+          <argLine>-javaagent:${org.mockito:mockito-core:jar}</argLine>
+        </configuration>
         <executions>
           <execution>
             <goals>
