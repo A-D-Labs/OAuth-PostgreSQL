@@ -45,6 +45,7 @@ public class AuthService {
     private final AuditService auditService;
     private final AuthenticationManager authenticationManager;
     private final AppProperties appProperties;
+    private final SessionIssuer sessionIssuer;
     private final SecureRandom secureRandom = new SecureRandom();
 
     @Autowired
@@ -55,7 +56,8 @@ public class AuthService {
                        RefreshTokenService refreshTokenService,
                        AuditService auditService,
                        AuthenticationManager authenticationManager,
-                       AppProperties appProperties) {
+                       AppProperties appProperties,
+                       SessionIssuer sessionIssuer) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
@@ -64,6 +66,7 @@ public class AuthService {
         this.auditService = auditService;
         this.authenticationManager = authenticationManager;
         this.appProperties = appProperties;
+        this.sessionIssuer = sessionIssuer;
     }
 
     @Transactional
@@ -236,8 +239,12 @@ public boolean verifyEmail(String token) {
         return true;
     }
 
+    /**
+     * Authenticate email+password. If the account has MFA active, issue only an MFA challenge
+     * (no session) and return {@code true}; otherwise issue a full session and return {@code false}.
+     */
     @Transactional
-    public void authenticateAndGenerateTokens(EmailLoginRequest loginRequest, HttpServletResponse response) {
+    public boolean authenticateAndGenerateTokens(EmailLoginRequest loginRequest, HttpServletResponse response) {
         try {
             // Authenticate via Spring Security
             Authentication authentication = authenticationManager.authenticate(
@@ -257,42 +264,15 @@ public boolean verifyEmail(String token) {
             user.recordLogin();
             userRepository.save(user);
 
-            // Generate JWT token
-            String token = jwtTokenProvider.generateToken(user.getEmail());
+            // Issue a session, or an MFA challenge if MFA is active.
+            boolean mfaRequired = sessionIssuer.issueSessionOrChallenge(user, response);
 
-            // Generate refresh token
-            RefreshToken refreshToken = refreshTokenService.generateRefreshToken(user);
-
-            // Cookie TTLs
-            long accessTtlSeconds = appProperties.getSecurity().getJwt().getExpiration() / 1000;
-            long refreshTtlSeconds = appProperties.getSecurity().getRefresh().getExpiration() / 1000;
-
-            // Access token cookie
-            CookieUtil.addCookie(
-                    response,
-                    "jwt",
-                    token,
-                    "/",
-                    accessTtlSeconds,
-                    appProperties
-            );
-
-            // Refresh token cookie (path-scoped)
-            CookieUtil.addCookie(
-                    response,
-                    "refresh_token",
-                    refreshToken.getRawToken(),
-                    "/refresh-token",
-                    refreshTtlSeconds,
-                    appProperties
-            );
-
-            // Log success
             auditService.logEvent(
                     AuditEventType.LOGIN_SUCCESS,
-                    "User logged in with email and password",
+                    mfaRequired ? "Password accepted; MFA challenge issued" : "User logged in with email and password",
                     "User: " + user.getEmail()
             );
+            return mfaRequired;
 
         } catch (DisabledException e) {
             auditService.logEvent(

@@ -76,6 +76,9 @@ class AuthServiceTest {
     @Mock
     private Authentication authentication;
 
+    @Mock
+    private com.template.OAuth.service.SessionIssuer sessionIssuer;
+
     @InjectMocks
     private AuthService authService;
 
@@ -218,19 +221,17 @@ class AuthServiceTest {
         when(authentication.getPrincipal()).thenReturn(userPrincipal);
         when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(testUser));
         when(userRepository.save(any(User.class))).thenReturn(testUser);
-        when(jwtTokenProvider.generateToken(anyString())).thenReturn("jwt-token");
-        when(refreshTokenService.generateRefreshToken(any(User.class))).thenReturn(testRefreshToken);
+        // Session issuance (JWT + refresh cookies) is delegated to SessionIssuer.
+        when(sessionIssuer.issueSessionOrChallenge(any(User.class), eq(servletResponse))).thenReturn(false);
 
         // Act
-        authService.authenticateAndGenerateTokens(loginRequest, servletResponse);
+        boolean mfaRequired = authService.authenticateAndGenerateTokens(loginRequest, servletResponse);
 
         // Assert
+        org.junit.jupiter.api.Assertions.assertFalse(mfaRequired);
         verify(authenticationManager, times(1)).authenticate(any(UsernamePasswordAuthenticationToken.class));
-        verify(jwtTokenProvider, times(1)).generateToken(anyString());
-        verify(refreshTokenService, times(1)).generateRefreshToken(any(User.class));
-
-        // Verify headers are added instead of addCookie
-        verify(servletResponse, atLeast(1)).addHeader(eq("Set-Cookie"), anyString());
+        // Token + cookie issuance now happens inside SessionIssuer.
+        verify(sessionIssuer, times(1)).issueSessionOrChallenge(any(User.class), eq(servletResponse));
 
         // Verify the user activity was recorded
         verify(userRepository, times(1)).save(any(User.class));
