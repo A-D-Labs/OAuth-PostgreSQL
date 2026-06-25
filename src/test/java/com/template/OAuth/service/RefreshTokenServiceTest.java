@@ -88,8 +88,7 @@ class RefreshTokenServiceTest {
 
     @Test
     void testGenerateRefreshToken_NewUser() {
-        // Arrange
-        when(refreshTokenRepository.findByUser(testUser)).thenReturn(Optional.empty());
+        // Arrange — multi-device: generateRefreshToken always creates a NEW session row.
         when(refreshTokenProvider.generateRefreshToken()).thenReturn("new-refresh-token");
         when(refreshTokenRepository.save(any(RefreshToken.class))).thenReturn(testRefreshToken);
 
@@ -103,9 +102,8 @@ class RefreshTokenServiceTest {
     }
 
     @Test
-    void testGenerateRefreshToken_ExistingToken() {
-        // Arrange
-        when(refreshTokenRepository.findByUser(testUser)).thenReturn(Optional.of(testRefreshToken));
+    void testGenerateRefreshToken_SecondDeviceCreatesAnotherSession() {
+        // Arrange — a second login creates an independent session (no eviction).
         when(refreshTokenProvider.generateRefreshToken()).thenReturn("updated-refresh-token");
         when(refreshTokenRepository.save(any(RefreshToken.class))).thenReturn(testRefreshToken);
 
