@@ -37,4 +37,11 @@ public class RefreshToken {
     private User user;
 
     private Instant expiryDate;
+
+    /**
+     * When this refresh family was established (a fresh login). Preserved across rotations so the
+     * absolute-lifetime cap can be enforced regardless of how often the token is rotated.
+     */
+    @Column(name = "created_at")
+    private Instant createdAt;
 }

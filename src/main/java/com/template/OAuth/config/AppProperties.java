@@ -76,7 +76,10 @@ public class AppProperties {
         @Getter
         @Setter
         public static class Refresh {
-            private long expiration = 604800000; // 7 days in milliseconds
+            private long expiration = 604800000; // 7 days in milliseconds (idle timeout)
+            // Absolute ceiling on a refresh family's age regardless of rotation; past this the
+            // user must re-authenticate. Default 30 days.
+            private long absoluteExpiration = 2592000000L; // 30 days in milliseconds
         }
 
         @Getter
