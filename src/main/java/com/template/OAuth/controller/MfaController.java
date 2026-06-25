@@ -131,6 +131,34 @@ public class MfaController {
         return ResponseEntity.ok(new AuthResponse(null, "MFA verification succeeded"));
     }
 
+    /**
+     * Disable MFA. Requires re-authentication: a current TOTP code (or an unused recovery code).
+     * Clears the secret, recovery codes, and the enabled flag.
+     */
+    @PostMapping("/disable")
+    @Transactional
+    public ResponseEntity<Map<String, String>> disable(@RequestBody MfaActivateRequest request) {
+        User user = userService.getCurrentUser();
+
+        if (!user.isMfaEnabled()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "MFA is not enabled"));
+        }
+        boolean reauthed = mfaService.verifyCode(user.getTotpSecret(), request.code())
+                || consumeRecoveryCode(user, request.code());
+        if (!reauthed) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Re-authentication failed; provide a current MFA code"));
+        }
+
+        user.setMfaEnabled(false);
+        user.setTotpSecret(null);
+        recoveryCodeRepository.deleteAllByUser(user);
+        userService.saveUser(user);
+
+        auditService.logEvent(AuditEventType.USER_UPDATED, "MFA disabled", "User: " + user.getEmail());
+        return ResponseEntity.ok(Map.of("status", "MFA disabled"));
+    }
+
     /** Consume a one-time recovery code (hash match, owned by user, unused). */
     private boolean consumeRecoveryCode(User user, String rawCode) {
         if (rawCode == null) {
