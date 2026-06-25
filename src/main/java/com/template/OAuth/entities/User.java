@@ -55,6 +55,11 @@ public class User {
     @Column(name = "totp_secret")
     private String totpSecret;
 
+    // Access-token revocation epoch (Tier 2c). Access tokens issued before this instant
+    // are rejected. Set on admin ban / forced-logout; null means "never revoked".
+    @Column(name = "tokens_invalid_before")
+    private Instant tokensInvalidBefore;
+
     @Column(length = 64)
     private String verificationToken;
 
