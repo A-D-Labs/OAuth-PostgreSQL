@@ -37,7 +37,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter { // ✅ Chang
 
         String token = jwtTokenProvider.getTokenFromRequest(request).orElse(null);
 
-        if (token != null && jwtTokenProvider.validateToken(token)) {
+        if (token != null && jwtTokenProvider.validateToken(token)
+                && !jwtTokenProvider.isMfaChallengeToken(token)) {
             String email = jwtTokenProvider.getEmailFromToken(token);
 
             if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {

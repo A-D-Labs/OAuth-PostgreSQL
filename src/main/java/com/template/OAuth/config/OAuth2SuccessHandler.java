@@ -6,6 +6,7 @@ import com.template.OAuth.enums.AuditEventType;
 import com.template.OAuth.service.AuditService;
 import com.template.OAuth.service.MessageService;
 import com.template.OAuth.service.RefreshTokenService;
+import com.template.OAuth.service.SessionIssuer;
 import com.template.OAuth.service.UserService;
 import com.template.OAuth.util.CookieUtil; // <-- NEW
 import jakarta.servlet.http.HttpServletRequest;
@@ -43,6 +44,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     private final AuditService auditService;
     private final MessageService messageService;
     private final LocaleResolver localeResolver;
+    private final SessionIssuer sessionIssuer;
 
     public OAuth2SuccessHandler(UserService userService,
             JwtTokenProvider jwtTokenProvider,
@@ -50,7 +52,8 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
             AppProperties appProperties,
             AuditService auditService,
             MessageService messageService,
-            LocaleResolver localeResolver) {
+            LocaleResolver localeResolver,
+            SessionIssuer sessionIssuer) {
         this.userService = userService;
         this.jwtTokenProvider = jwtTokenProvider;
         this.refreshTokenService = refreshTokenService;
@@ -58,6 +61,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         this.auditService = auditService;
         this.messageService = messageService;
         this.localeResolver = localeResolver;
+        this.sessionIssuer = sessionIssuer;
 
         // Safely handle the URL formatting with null checks
         initializeTargetUrl();
@@ -94,6 +98,11 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         setDefaultTargetUrl(targetUrl);
     }
 
+    /** Frontend page where the user completes the MFA second factor. */
+    private String mfaChallengeUrl() {
+        return frontendUrl.endsWith("/") ? frontendUrl + "mfa" : frontendUrl + "/mfa";
+    }
+
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
             Authentication authentication) throws IOException {
@@ -110,34 +119,9 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                     localeResolver.setLocale(Objects.requireNonNull(request), Objects.requireNonNull(response), locale);
                 }
 
-                // Generate JWT token
-                String token = jwtTokenProvider.generateToken(user.getEmail());
-
-                // Generate refresh token
-                RefreshToken refreshToken = refreshTokenService.generateRefreshToken(user);
-
-                // ---- NEW: Centralized cookie creation with CookieUtil ----
-                long accessTtlSeconds = appProperties.getSecurity().getJwt().getExpiration() / 1000;
-                long refreshTtlSeconds = appProperties.getSecurity().getRefresh().getExpiration() / 1000;
-
-                // Access token cookie (HttpOnly, Secure, SameSite, Domain via CookieUtil)
-                CookieUtil.addCookie(
-                        response,
-                        "jwt",
-                        token,
-                        "/", // accessible across the API
-                        accessTtlSeconds,
-                        appProperties);
-
-                // Refresh token cookie (optionally scope to refresh endpoint)
-                CookieUtil.addCookie(
-                        response,
-                        "refresh_token",
-                        refreshToken.getToken(),
-                        "/refresh-token", // tighter path scope for refresh flow
-                        refreshTtlSeconds,
-                        appProperties);
-                // ----------------------------------------------------------
+                // Issue a session, or an MFA challenge if the account has MFA active.
+                // Token + cookie creation is centralized in SessionIssuer (shared with password login).
+                boolean mfaRequired = sessionIssuer.issueSessionOrChallenge(user, response);
 
                 // Audit successful OAuth login
                 boolean isNewUser = user.getLoginCount() == 1;
@@ -148,11 +132,13 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 }
 
                 auditService.logEvent(AuditEventType.LOGIN_SUCCESS,
-                        messageService.getMessage("auth.login.success"),
+                        mfaRequired ? "OAuth login accepted; MFA challenge issued"
+                                : messageService.getMessage("auth.login.success"),
                         "User: " + user.getEmail() + ", Provider: " + oidcUser.getIssuer().toString());
 
-                // Redirect to frontend home page
-                getRedirectStrategy().sendRedirect(request, response, getDefaultTargetUrl());
+                // MFA-enabled accounts go to the MFA challenge page; others to the success page.
+                String redirectUrl = mfaRequired ? mfaChallengeUrl() : getDefaultTargetUrl();
+                getRedirectStrategy().sendRedirect(request, response, redirectUrl);
             } catch (Exception e) {
                 logger.error("Error in OAuth authentication success handler", e);
 

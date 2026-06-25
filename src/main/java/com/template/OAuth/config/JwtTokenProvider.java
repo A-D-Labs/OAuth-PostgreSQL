@@ -27,6 +27,9 @@ public class JwtTokenProvider {
     /** The insecure built-in default that older configs shipped — must never be used. */
     private static final String INSECURE_DEFAULT_SECRET = "defaultsecretkey12345678901234567890";
 
+    /** MFA challenge token lifetime (5 minutes). */
+    private static final long MFA_CHALLENGE_TTL_MS = 300_000L;
+
     @Value("${app.security.jwt.secret}")
     private String jwtSecret;
 
@@ -99,6 +102,29 @@ public class JwtTokenProvider {
             return issued == null ? null : issued.toInstant();
         } catch (JwtException | IllegalArgumentException e) {
             return null;
+        }
+    }
+
+    /** Short-lived (5 min) one-time token marking a pending MFA second factor. Not a session. */
+    public String generateMfaChallengeToken(String email) {
+        Date now = new Date();
+        Date exp = new Date(now.getTime() + MFA_CHALLENGE_TTL_MS);
+        return Jwts.builder()
+                .subject(email)
+                .id(UUID.randomUUID().toString())
+                .claim("mfa_challenge", true)
+                .issuedAt(now)
+                .expiration(exp)
+                .signWith(getSigningKey(), Jwts.SIG.HS256)
+                .compact();
+    }
+
+    /** True if this is a valid MFA challenge token (signed, unexpired, mfa_challenge=true). */
+    public boolean isMfaChallengeToken(String token) {
+        try {
+            return Boolean.TRUE.equals(parseClaims(token).get("mfa_challenge", Boolean.class));
+        } catch (JwtException | IllegalArgumentException e) {
+            return false;
         }
     }
 

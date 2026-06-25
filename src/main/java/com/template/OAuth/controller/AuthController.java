@@ -165,8 +165,12 @@ public class AuthController {
             HttpServletResponse response) {
 
         try {
-            authService.authenticateAndGenerateTokens(loginRequest, response);
+            boolean mfaRequired = authService.authenticateAndGenerateTokens(loginRequest, response);
             metricsService.incrementAuthSuccess();
+            if (mfaRequired) {
+                // Password accepted but a second factor is required; no session issued yet.
+                return ResponseEntity.ok(new AuthResponse(null, "MFA verification required"));
+            }
             return ResponseEntity.ok(new AuthResponse(null, messageService.getMessage("auth.login.success")));
         } catch (ApiException e) {
             metricsService.incrementAuthFailure();
