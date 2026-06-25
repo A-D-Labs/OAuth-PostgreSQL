@@ -98,9 +98,9 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         setDefaultTargetUrl(targetUrl);
     }
 
-    /** Frontend page where the user completes the MFA second factor. */
-    private String mfaChallengeUrl() {
-        return frontendUrl.endsWith("/") ? frontendUrl + "mfa" : frontendUrl + "/mfa";
+    /** Frontend page for an MFA step (e.g. "mfa" challenge or "mfa-enrol"). */
+    private String mfaPageUrl(String page) {
+        return frontendUrl.endsWith("/") ? frontendUrl + page : frontendUrl + "/" + page;
     }
 
     @Override
@@ -119,9 +119,9 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                     localeResolver.setLocale(Objects.requireNonNull(request), Objects.requireNonNull(response), locale);
                 }
 
-                // Issue a session, or an MFA challenge if the account has MFA active.
+                // Issue a session, an MFA challenge, or a forced-enrolment token.
                 // Token + cookie creation is centralized in SessionIssuer (shared with password login).
-                boolean mfaRequired = sessionIssuer.issueSessionOrChallenge(user, response);
+                SessionIssuer.LoginOutcome outcome = sessionIssuer.issueSessionOrChallenge(user, response);
 
                 // Audit successful OAuth login
                 boolean isNewUser = user.getLoginCount() == 1;
@@ -132,12 +132,17 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 }
 
                 auditService.logEvent(AuditEventType.LOGIN_SUCCESS,
-                        mfaRequired ? "OAuth login accepted; MFA challenge issued"
-                                : messageService.getMessage("auth.login.success"),
+                        outcome == SessionIssuer.LoginOutcome.SESSION_ISSUED
+                                ? messageService.getMessage("auth.login.success")
+                                : "OAuth login accepted; MFA " + outcome,
                         "User: " + user.getEmail() + ", Provider: " + oidcUser.getIssuer().toString());
 
-                // MFA-enabled accounts go to the MFA challenge page; others to the success page.
-                String redirectUrl = mfaRequired ? mfaChallengeUrl() : getDefaultTargetUrl();
+                // Route by outcome: MFA challenge / enrolment pages, or the normal success page.
+                String redirectUrl = switch (outcome) {
+                    case MFA_CHALLENGE -> mfaPageUrl("mfa");
+                    case MFA_ENROLMENT_REQUIRED -> mfaPageUrl("mfa-enrol");
+                    case SESSION_ISSUED -> getDefaultTargetUrl();
+                };
                 getRedirectStrategy().sendRedirect(request, response, redirectUrl);
             } catch (Exception e) {
                 logger.error("Error in OAuth authentication success handler", e);

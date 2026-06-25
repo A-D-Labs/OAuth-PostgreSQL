@@ -30,6 +30,9 @@ public class JwtTokenProvider {
     /** MFA challenge token lifetime (5 minutes). */
     private static final long MFA_CHALLENGE_TTL_MS = 300_000L;
 
+    /** MFA enrol-only token lifetime (10 minutes) — enough to scan a QR + enter a code. */
+    private static final long MFA_ENROL_TTL_MS = 600_000L;
+
     @Value("${app.security.jwt.secret}")
     private String jwtSecret;
 
@@ -123,6 +126,32 @@ public class JwtTokenProvider {
     public boolean isMfaChallengeToken(String token) {
         try {
             return Boolean.TRUE.equals(parseClaims(token).get("mfa_challenge", Boolean.class));
+        } catch (JwtException | IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Restricted token for a role-mandatory user who hasn't enrolled MFA yet. It authenticates
+     * ONLY the enrol/activate endpoints (enforced in the filter) — not a full session.
+     */
+    public String generateMfaEnrolToken(String email) {
+        Date now = new Date();
+        Date exp = new Date(now.getTime() + MFA_ENROL_TTL_MS);
+        return Jwts.builder()
+                .subject(email)
+                .id(UUID.randomUUID().toString())
+                .claim("mfa_enrol", true)
+                .issuedAt(now)
+                .expiration(exp)
+                .signWith(getSigningKey(), Jwts.SIG.HS256)
+                .compact();
+    }
+
+    /** True if this is a valid enrol-only token (signed, unexpired, mfa_enrol=true). */
+    public boolean isMfaEnrolToken(String token) {
+        try {
+            return Boolean.TRUE.equals(parseClaims(token).get("mfa_enrol", Boolean.class));
         } catch (JwtException | IllegalArgumentException e) {
             return false;
         }

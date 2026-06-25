@@ -44,7 +44,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter { // ✅ Chang
             if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
-                if (userDetails != null && !isRevoked(token, userDetails)) {
+                // An enrol-only token authenticates ONLY the MFA enrol/activate endpoints; on any
+                // other path it grants nothing (role-mandatory user must finish enrolment first).
+                boolean enrolBlocked = jwtTokenProvider.isMfaEnrolToken(token) && !isMfaEnrolPath(request);
+
+                if (userDetails != null && !isRevoked(token, userDetails) && !enrolBlocked) {
                     JwtAuthenticationToken authentication =
                             new JwtAuthenticationToken(userDetails, token, userDetails.getAuthorities());
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
@@ -61,6 +65,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter { // ✅ Chang
      * ({@code tokens_invalid_before}) — i.e. an admin ban / forced-logout has invalidated it.
      * No extra query: the epoch rides on the loaded {@link UserPrincipal}.
      */
+    /** The endpoints an enrol-only token may reach. */
+    private boolean isMfaEnrolPath(HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        return uri.equals("/auth/mfa/enroll") || uri.equals("/auth/mfa/activate");
+    }
+
     private boolean isRevoked(String token, UserDetails userDetails) {
         if (!(userDetails instanceof UserPrincipal principal)) {
             return false;

@@ -4,9 +4,16 @@ import com.template.OAuth.config.AppProperties;
 import com.template.OAuth.config.JwtTokenProvider;
 import com.template.OAuth.entities.RefreshToken;
 import com.template.OAuth.entities.User;
+import com.template.OAuth.enums.Role;
 import com.template.OAuth.util.CookieUtil;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Single chokepoint for turning an authenticated {@link User} into a session (or, when MFA
@@ -18,18 +25,43 @@ public class SessionIssuer {
 
     /** How long the one-time MFA challenge cookie lives (seconds). */
     public static final long CHALLENGE_TTL_SECONDS = 300; // 5 minutes
+    public static final long ENROL_TTL_SECONDS = 600;     // 10 minutes
     public static final String CHALLENGE_COOKIE = "mfa_challenge";
+
+    /** Outcome of a first-factor success: full session, second-factor needed, or enrolment forced. */
+    public enum LoginOutcome { SESSION_ISSUED, MFA_CHALLENGE, MFA_ENROLMENT_REQUIRED }
 
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenService refreshTokenService;
     private final AppProperties appProperties;
 
+    /** Roles for which MFA is mandatory (configurable; default ADMIN). */
+    private final Set<Role> mfaRequiredRoles;
+
     public SessionIssuer(JwtTokenProvider jwtTokenProvider,
                          RefreshTokenService refreshTokenService,
-                         AppProperties appProperties) {
+                         AppProperties appProperties,
+                         @Value("${app.security.mfa.required-roles:ADMIN}") String requiredRolesCsv) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.refreshTokenService = refreshTokenService;
         this.appProperties = appProperties;
+        this.mfaRequiredRoles = parseRoles(requiredRolesCsv);
+    }
+
+    private static Set<Role> parseRoles(String csv) {
+        if (csv == null || csv.isBlank()) {
+            return EnumSet.noneOf(Role.class);
+        }
+        return Arrays.stream(csv.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .map(Role::valueOf)
+                .collect(Collectors.toCollection(() -> EnumSet.noneOf(Role.class)));
+    }
+
+    /** True if the user holds a role for which MFA is mandatory. */
+    private boolean mfaMandatoryFor(User user) {
+        return user.getRoles() != null && user.getRoles().stream().anyMatch(mfaRequiredRoles::contains);
     }
 
     /**
@@ -60,16 +92,30 @@ public class SessionIssuer {
         CookieUtil.addCookie(response, CHALLENGE_COOKIE, "", "/auth/mfa", 0, appProperties);
     }
 
+    /** Issue the restricted enrol-only token (in the jwt cookie); gated to enrol/activate by the filter. */
+    public void issueEnrolToken(User user, HttpServletResponse response) {
+        String enrolToken = jwtTokenProvider.generateMfaEnrolToken(user.getEmail());
+        CookieUtil.addCookie(response, "jwt", enrolToken, "/", ENROL_TTL_SECONDS, appProperties);
+    }
+
     /**
-     * Issue a session, or an MFA challenge if the user has MFA active.
-     * @return true if an MFA challenge was issued (second factor still required).
+     * Resolve the first-factor success into one of three outcomes:
+     * <ul>
+     *   <li>MFA active → issue a challenge (second factor required)</li>
+     *   <li>MFA mandatory for the user's role but not enrolled → issue an enrol-only token</li>
+     *   <li>otherwise → issue a full session</li>
+     * </ul>
      */
-    public boolean issueSessionOrChallenge(User user, HttpServletResponse response) {
+    public LoginOutcome issueSessionOrChallenge(User user, HttpServletResponse response) {
         if (user.isMfaEnabled()) {
             issueChallenge(user, response);
-            return true;
+            return LoginOutcome.MFA_CHALLENGE;
+        }
+        if (mfaMandatoryFor(user)) {
+            issueEnrolToken(user, response);
+            return LoginOutcome.MFA_ENROLMENT_REQUIRED;
         }
         issueSession(user, response);
-        return false;
+        return LoginOutcome.SESSION_ISSUED;
     }
 }
