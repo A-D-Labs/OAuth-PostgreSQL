@@ -53,8 +53,10 @@ public class RefreshTokenService {
 
         String rawToken = refreshTokenProvider.generateRefreshToken();
         rt.setToken(TokenHasher.sha256Hex(rawToken));
-        // A fresh login starts a new token family — clear any rotation history.
+        // A fresh login starts a new token family — clear rotation history and reset the
+        // family origin so the absolute-lifetime cap restarts from this login.
         rt.setPreviousToken(null);
+        rt.setCreatedAt(Instant.now());
         rt.setExpiryDate(Instant.now().plusMillis(appProperties.getSecurity().getRefresh().getExpiration()));
 
         RefreshToken saved = refreshTokenRepository.save(rt);
@@ -92,6 +94,15 @@ public class RefreshTokenService {
         if (refreshToken.getExpiryDate().isBefore(Instant.now())) {
             refreshTokenRepository.delete(refreshToken);
             throw new RefreshTokenExpiredException("Refresh token has expired");
+        }
+
+        // Absolute-lifetime cap: a family cannot be renewed forever. Past the cap, force re-auth.
+        long absoluteMs = appProperties.getSecurity().getRefresh().getAbsoluteExpiration();
+        if (refreshToken.getCreatedAt() != null
+                && refreshToken.getCreatedAt().plusMillis(absoluteMs).isBefore(Instant.now())) {
+            refreshTokenRepository.delete(refreshToken);
+            throw new RefreshTokenExpiredException(
+                    "Refresh token exceeded its absolute lifetime; please log in again");
         }
 
         // Generate new JWT
