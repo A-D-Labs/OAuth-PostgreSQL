@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey; // NOTE: javax, not jakarta
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -78,6 +79,7 @@ public class JwtTokenProvider {
 
         return Jwts.builder()
                 .subject(email)
+                .id(UUID.randomUUID().toString()) // jti — enables future per-token deny-list (with Redis)
                 .claim("roles", roles)
                 .issuedAt(now)
                 .expiration(exp)
@@ -88,6 +90,16 @@ public class JwtTokenProvider {
 
     public String getEmailFromToken(String token) {
         return parseClaims(token).getSubject();
+    }
+
+    /** The token's issued-at instant, or null if unreadable. Used for the per-user revocation epoch. */
+    public Instant getIssuedAt(String token) {
+        try {
+            Date issued = parseClaims(token).getIssuedAt();
+            return issued == null ? null : issued.toInstant();
+        } catch (JwtException | IllegalArgumentException e) {
+            return null;
+        }
     }
 
     public boolean validateToken(String token) {

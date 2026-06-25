@@ -5,6 +5,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -14,12 +15,20 @@ public class UserPrincipal implements UserDetails {
     private final String password;
     private final boolean enabled;
     private final Collection<? extends GrantedAuthority> authorities;
+    /** Carried so the JWT filter can reject tokens issued before this instant — no extra query. */
+    private final Instant tokensInvalidBefore;
 
     public UserPrincipal(String email, String password, boolean enabled, Collection<? extends GrantedAuthority> authorities) {
+        this(email, password, enabled, authorities, null);
+    }
+
+    public UserPrincipal(String email, String password, boolean enabled,
+                         Collection<? extends GrantedAuthority> authorities, Instant tokensInvalidBefore) {
         this.email = email;
         this.password = password;
         this.enabled = enabled;
         this.authorities = authorities;
+        this.tokensInvalidBefore = tokensInvalidBefore;
     }
 
     public static UserPrincipal create(User user) {
@@ -31,8 +40,14 @@ public class UserPrincipal implements UserDetails {
                 user.getEmail(),
                 user.getPassword(),
                 user.isEnabled(),
-                authorities
+                authorities,
+                user.getTokensInvalidBefore()
         );
+    }
+
+    /** Instant before which this user's access tokens are revoked; null if never revoked. */
+    public Instant getTokensInvalidBefore() {
+        return tokensInvalidBefore;
     }
 
     @Override
