@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "summary": "Robustness epic, Tier 1 (CI/CD) — sprint 2026-W26. A GitHub Actions build+test+scan gate on dev. Triaged for conflict-free fan-out: Wave 1 lands the foundational ci.yml (Postgres service container + ./mvnw verify). Wave 2 runs the two issues that both edit ci.yml sequentially (Maven cache, then Trivy) to avoid merge conflicts. Wave 3 runs the two file-independent issues in parallel (Dependabot config, and gh-api branch protection which only needs Wave 1's stable check name). Tier 2/3 deferred to future sprints.",
+  "waves": [
+    {
+      "no": 1,
+      "label": "Wave 1 — CI core (foundation)",
+      "mode": "sequential",
+      "issues": [15],
+      "blurb": "ci.yml with a postgres:16 service container running ./mvnw -B verify, proven green on a PR to dev. Test DB overridden via TEST_DB_URL/USERNAME/PASSWORD env (see #15 stage-4 note). Everything else extends this file or depends on its check name."
+    },
+    {
+      "no": 2,
+      "label": "Wave 2 — ci.yml extensions (sequential)",
+      "mode": "sequential",
+      "issues": [16, 18],
+      "blurb": "Both edit .github/workflows/ci.yml, so run one at a time to avoid merge conflicts: #16 (Maven cache) then #18 (Trivy HIGH/CRITICAL scan). Each branches off dev after the prior merges."
+    },
+    {
+      "no": 3,
+      "label": "Wave 3 — Independent (parallel)",
+      "mode": "parallel-2",
+      "issues": [17, 19],
+      "blurb": "#17 (new .github/dependabot.yml) and #19 (enable required-status-check branch protection on dev via gh api) touch neither ci.yml nor each other. #19 depends only on Wave 1's stable check name."
+    }
+  ]
+}
