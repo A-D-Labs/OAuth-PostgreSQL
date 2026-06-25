@@ -91,7 +91,7 @@ class RefreshAbsoluteLifetimeIT extends BaseIntegrationTest {
 
         // Age the family past the 30-day absolute cap (the token itself is otherwise valid/unexpired).
         User user = userRepository.findByEmail(email).orElseThrow();
-        RefreshToken token = refreshTokenRepository.findByUser(user).orElseThrow();
+        RefreshToken token = refreshTokenRepository.findByUser(user).get(0);
         token.setCreatedAt(Instant.now().minus(31, ChronoUnit.DAYS));
         refreshTokenRepository.saveAndFlush(token);
 

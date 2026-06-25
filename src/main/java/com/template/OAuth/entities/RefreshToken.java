@@ -32,9 +32,23 @@ public class RefreshToken {
     @Column(name = "previous_token")
     private String previousToken;
 
-    @OneToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", referencedColumnName = "id", nullable = false)
     private User user;
+
+    /**
+     * Stable identifier for this session/device family across rotations. One per login; a User may
+     * hold several concurrently (multi-device, ADR-0007).
+     */
+    @Column(name = "session_id", nullable = false, unique = true, length = 64)
+    private String sessionId;
+
+    /** Device metadata captured at login, for "list my sessions". */
+    @Column(name = "user_agent", length = 512)
+    private String userAgent;
+
+    @Column(name = "ip_address", length = 64)
+    private String ipAddress;
 
     private Instant expiryDate;
 
@@ -44,4 +58,8 @@ public class RefreshToken {
      */
     @Column(name = "created_at")
     private Instant createdAt;
+
+    /** Updated on each rotation — drives the idle view in "list my sessions". */
+    @Column(name = "last_used_at")
+    private Instant lastUsedAt;
 }

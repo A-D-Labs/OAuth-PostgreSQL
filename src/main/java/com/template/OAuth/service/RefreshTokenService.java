@@ -14,13 +14,17 @@ import com.template.OAuth.repositories.RefreshTokenRepository;
 import com.template.OAuth.repositories.UserRepository;
 import com.template.OAuth.util.CookieUtil;
 import com.template.OAuth.util.TokenHasher;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.Instant;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class RefreshTokenService {
@@ -45,25 +49,54 @@ public class RefreshTokenService {
 
     @Transactional
     public RefreshToken generateRefreshToken(User user) {
-        RefreshToken rt = refreshTokenRepository.findByUser(user).orElseGet(() -> {
-            RefreshToken created = new RefreshToken();
-            created.setUser(user);
-            return created;
-        });
+        // Multi-device (ADR-0007): each login creates its OWN session row, so devices coexist
+        // instead of evicting each other. Capture device metadata from the current web request.
+        RefreshToken rt = new RefreshToken();
+        rt.setUser(user);
+        rt.setSessionId(UUID.randomUUID().toString());
 
         String rawToken = refreshTokenProvider.generateRefreshToken();
         rt.setToken(TokenHasher.sha256Hex(rawToken));
-        // A fresh login starts a new token family — clear rotation history and reset the
-        // family origin so the absolute-lifetime cap restarts from this login.
         rt.setPreviousToken(null);
-        rt.setCreatedAt(Instant.now());
-        rt.setExpiryDate(Instant.now().plusMillis(appProperties.getSecurity().getRefresh().getExpiration()));
+
+        Instant now = Instant.now();
+        rt.setCreatedAt(now);      // family origin — absolute-lifetime cap anchors here
+        rt.setLastUsedAt(now);
+        DeviceInfo device = currentDevice();
+        rt.setUserAgent(device.userAgent());
+        rt.setIpAddress(device.ipAddress());
+        rt.setExpiryDate(now.plusMillis(appProperties.getSecurity().getRefresh().getExpiration()));
 
         RefreshToken saved = refreshTokenRepository.save(rt);
         // The raw token is what the client receives; only its hash is persisted.
         saved.setRawToken(rawToken);
         return saved;
     }
+
+    /** Device metadata (user-agent, client IP) read from the current web request, if any. */
+    private DeviceInfo currentDevice() {
+        try {
+            ServletRequestAttributes attrs =
+                    (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs != null) {
+                HttpServletRequest req = attrs.getRequest();
+                String ua = req.getHeader("User-Agent");
+                if (ua != null && ua.length() > 512) {
+                    ua = ua.substring(0, 512);
+                }
+                String forwarded = req.getHeader("X-Forwarded-For");
+                String ip = (forwarded != null && !forwarded.isBlank())
+                        ? forwarded.split(",")[0].trim()
+                        : req.getRemoteAddr();
+                return new DeviceInfo(ua, ip);
+            }
+        } catch (IllegalStateException ignored) {
+            // Not in a request context (e.g. unit tests calling the service directly).
+        }
+        return new DeviceInfo(null, null);
+    }
+
+    private record DeviceInfo(String userAgent, String ipAddress) {}
 
     @Transactional
     public RefreshTokenResponse refreshToken(String oldRefreshToken, HttpServletResponse response) {
@@ -113,6 +146,7 @@ public class RefreshTokenService {
         String newRefreshToken = refreshTokenProvider.generateRefreshToken();
         refreshToken.setPreviousToken(presentedHash);
         refreshToken.setToken(TokenHasher.sha256Hex(newRefreshToken));
+        refreshToken.setLastUsedAt(Instant.now());
         refreshToken.setExpiryDate(Instant.now().plusMillis(appProperties.getSecurity().getRefresh().getExpiration()));
         refreshTokenRepository.save(refreshToken);
 
@@ -129,8 +163,20 @@ public class RefreshTokenService {
     @Transactional
     public void revokeAllForUser(String email) {
         userRepository.findByEmail(email).ifPresent(user -> {
-            // Either is fine; keep both available in the repo
+            // Admin forced-logout / ban: drop ALL of the user's sessions.
             refreshTokenRepository.deleteAllByUser(user);
         });
+    }
+
+    /** Revoke a single session/device owned by the user (multi-device, ADR-0007). */
+    @Transactional
+    public boolean revokeSession(User user, String sessionId) {
+        return refreshTokenRepository.findBySessionId(sessionId)
+                .filter(rt -> rt.getUser().getId().equals(user.getId()))
+                .map(rt -> {
+                    refreshTokenRepository.delete(rt);
+                    return true;
+                })
+                .orElse(false);
     }
 }
