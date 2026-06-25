@@ -240,11 +240,11 @@ public boolean verifyEmail(String token) {
     }
 
     /**
-     * Authenticate email+password. If the account has MFA active, issue only an MFA challenge
-     * (no session) and return {@code true}; otherwise issue a full session and return {@code false}.
+     * Authenticate email+password and resolve the first-factor success into a {@link SessionIssuer.LoginOutcome}:
+     * a full session, an MFA challenge (MFA active), or forced enrolment (MFA mandatory for the role).
      */
     @Transactional
-    public boolean authenticateAndGenerateTokens(EmailLoginRequest loginRequest, HttpServletResponse response) {
+    public SessionIssuer.LoginOutcome authenticateAndGenerateTokens(EmailLoginRequest loginRequest, HttpServletResponse response) {
         try {
             // Authenticate via Spring Security
             Authentication authentication = authenticationManager.authenticate(
@@ -264,15 +264,16 @@ public boolean verifyEmail(String token) {
             user.recordLogin();
             userRepository.save(user);
 
-            // Issue a session, or an MFA challenge if MFA is active.
-            boolean mfaRequired = sessionIssuer.issueSessionOrChallenge(user, response);
+            // Issue a session, an MFA challenge, or a forced-enrolment token.
+            SessionIssuer.LoginOutcome outcome = sessionIssuer.issueSessionOrChallenge(user, response);
 
-            auditService.logEvent(
-                    AuditEventType.LOGIN_SUCCESS,
-                    mfaRequired ? "Password accepted; MFA challenge issued" : "User logged in with email and password",
-                    "User: " + user.getEmail()
-            );
-            return mfaRequired;
+            String detail = switch (outcome) {
+                case MFA_CHALLENGE -> "Password accepted; MFA challenge issued";
+                case MFA_ENROLMENT_REQUIRED -> "Password accepted; MFA enrolment required";
+                case SESSION_ISSUED -> "User logged in with email and password";
+            };
+            auditService.logEvent(AuditEventType.LOGIN_SUCCESS, detail, "User: " + user.getEmail());
+            return outcome;
 
         } catch (DisabledException e) {
             auditService.logEvent(

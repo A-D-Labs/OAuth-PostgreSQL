@@ -74,6 +74,10 @@ app:
       expirationHours: 24
     passwordReset:
       expirationHours: 1
+    mfa:
+      # Roles for which MFA is mandatory (comma-separated). Holders without active MFA are
+      # forced to enrol at login before any session is issued. Empty = MFA fully opt-in.
+      required-roles: ${MFA_REQUIRED_ROLES:ADMIN}
     # Only trust X-Forwarded-For for client-IP/rate-limiting when behind a trusted proxy.
     # Default false so a direct client cannot spoof XFF to evade auth throttling.
     trust-proxy: ${TRUST_PROXY:false}

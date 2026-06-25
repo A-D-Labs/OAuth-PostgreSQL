@@ -222,13 +222,15 @@ class AuthServiceTest {
         when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(testUser));
         when(userRepository.save(any(User.class))).thenReturn(testUser);
         // Session issuance (JWT + refresh cookies) is delegated to SessionIssuer.
-        when(sessionIssuer.issueSessionOrChallenge(any(User.class), eq(servletResponse))).thenReturn(false);
+        when(sessionIssuer.issueSessionOrChallenge(any(User.class), eq(servletResponse)))
+                .thenReturn(com.template.OAuth.service.SessionIssuer.LoginOutcome.SESSION_ISSUED);
 
         // Act
-        boolean mfaRequired = authService.authenticateAndGenerateTokens(loginRequest, servletResponse);
+        var outcome = authService.authenticateAndGenerateTokens(loginRequest, servletResponse);
 
         // Assert
-        org.junit.jupiter.api.Assertions.assertFalse(mfaRequired);
+        org.junit.jupiter.api.Assertions.assertEquals(
+                com.template.OAuth.service.SessionIssuer.LoginOutcome.SESSION_ISSUED, outcome);
         verify(authenticationManager, times(1)).authenticate(any(UsernamePasswordAuthenticationToken.class));
         // Token + cookie issuance now happens inside SessionIssuer.
         verify(sessionIssuer, times(1)).issueSessionOrChallenge(any(User.class), eq(servletResponse));
