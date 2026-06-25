@@ -47,6 +47,14 @@ public class User {
     @Column(length = 60)
     private String password;
 
+    // MFA / TOTP (Tier 2a). totpSecret is recoverable (needed to verify codes);
+    // recovery codes are hashed and live in mfa_recovery_codes.
+    @Column(name = "mfa_enabled", nullable = false)
+    private boolean mfaEnabled = false;
+
+    @Column(name = "totp_secret")
+    private String totpSecret;
+
     @Column(length = 64)
     private String verificationToken;
 
