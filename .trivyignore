@@ -1,59 +1,8 @@
 # Trivy ignore file — documented, justified vulnerability exceptions only.
 #
-# Add an entry ONLY when a finding is genuinely unfixable/not-applicable, or is a
-# tracked pre-existing baseline. Each entry carries a justification + review date.
-# Never silence the gate without a paper trail.
+# Add an entry ONLY when a finding is genuinely unfixable/not-applicable. Each entry
+# carries a justification + review date. Never silence the gate without a paper trail.
 #
-# ── BASELINE (added with the Trivy gate, #18) ──────────────────────────────────
-# The 34 HIGH/CRITICAL CVEs below are PRE-EXISTING in the dependency set as of
-# 2026-06-25. They are baselined here so the gate can land and block any NEW
-# regressions immediately. Remediation (Spring Boot 3.4 -> 3.5.x bump + a few
-# direct dep bumps) is tracked in issue #25 and scheduled for a future sprint —
-# remove each line as it is fixed. Review by: 2026-07-31.
-
-# spring-boot (fixed 3.5.14 / 4.0.6) — #25
-CVE-2025-22235
-CVE-2026-40973
-# spring-boot-starter-actuator (fixed 3.5.12 / 4.0.4) — #25
-CVE-2026-22731
-CVE-2026-22733
-# spring-security-core (fixed 6.4.6 / 6.4.10 / 6.5.4) — #25
-CVE-2025-41232
-CVE-2025-41248
-# spring-security-web (fixed 6.5.9 / 7.0.4) — #25
-CVE-2026-22732
-# spring-security-crypto (fixed 6.4.4 / 6.3.8 ...) — #25
-CVE-2025-22228
-# spring-core (fixed 6.2.11) — #25
-CVE-2025-41249
-# tomcat-embed-core (fixed 10.1.55 / 11.0.22 ...) — #25
-CVE-2025-48988
-CVE-2025-48989
-CVE-2025-52520
-CVE-2025-53506
-CVE-2025-55752
-CVE-2026-24734
-CVE-2026-24880
-CVE-2026-34483
-CVE-2026-41284
-CVE-2026-41293
-CVE-2026-42498
-CVE-2026-43512
-CVE-2026-43513
-CVE-2026-43515
-# org.postgresql:postgresql (fixed 42.7.7 / 42.7.11) — #25
-CVE-2025-49146
-CVE-2026-42198
-# thymeleaf + thymeleaf-spring6 (fixed 3.1.4 / 3.1.5) — #25
-CVE-2026-40477
-CVE-2026-40478
-CVE-2026-41901
-# io.netty:netty-codec (fixed 4.1.133.Final) — #25
-CVE-2026-42583
-# io.netty:netty-handler (fixed 4.1.135.Final / 4.2.15.Final) — #25
-CVE-2026-44249
-CVE-2026-45416
-CVE-2026-50010
-# com.fasterxml.jackson.core:jackson-databind (fixed 2.18.8 / 2.21.4) — #25
-CVE-2026-54512
-CVE-2026-54513
+# The 34-CVE baseline added with the Trivy gate (#18) was REMEDIATED in #25 via the
+# Spring Boot 3.4 -> 3.5.14 bump plus jackson/netty/tomcat/postgresql version overrides,
+# so this file is empty again. Any future documented exception goes below.
