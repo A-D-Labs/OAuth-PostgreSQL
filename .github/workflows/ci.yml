@@ -51,3 +51,16 @@ jobs:
       - name: Build & test (verify)
         # Surefire (*Test) + Failsafe (*IT) both run in the verify phase.
         run: ./mvnw -B verify
+
+      # Dependency-vulnerability gate. Scans the resolved Maven dependencies and
+      # fails the build on HIGH/CRITICAL findings. Documented exceptions live in
+      # .trivyignore (with justification), per ADR-0004 — never silently disabled.
+      - name: Trivy dependency vulnerability scan
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          trivyignores: .trivyignore

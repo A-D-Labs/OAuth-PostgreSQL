@@ -1,0 +1,8 @@
+# Trivy ignore file — documented, justified vulnerability exceptions only.
+#
+# Each entry MUST carry a justification comment and (ideally) a review date.
+# Format: one CVE id per line, e.g.
+#   CVE-2024-12345  # transitive via foo; no fix available, not reachable in our code paths — review 2026-09
+#
+# Empty by default: the HIGH/CRITICAL gate is strict. Add an entry ONLY when a
+# finding is genuinely unfixable/not-applicable, never to silence the gate.
