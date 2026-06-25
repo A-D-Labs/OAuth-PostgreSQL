@@ -1,27 +1,27 @@
 {
   "schema_version": 1,
-  "summary": "Robustness epic, Tier 1 (CI/CD) — sprint 2026-W26. A GitHub Actions build+test+scan gate on dev. Triaged for conflict-free fan-out: Wave 1 lands the foundational ci.yml (Postgres service container + ./mvnw verify). Wave 2 runs the two issues that both edit ci.yml sequentially (Maven cache, then Trivy) to avoid merge conflicts. Wave 3 runs the two file-independent issues in parallel (Dependabot config, and gh-api branch protection which only needs Wave 1's stable check name). Tier 2/3 deferred to future sprints.",
+  "summary": "Robustness Tier 2 (security depth), sprint 2026-W26, iteration 1. Ships MFA/TOTP (all accounts, role-mandatory) and access-token revocation + refresh lifecycle caps; multi-device sessions (2b) deferred to the Redis iteration. Waves continue the Tier-1 numbering (Tier 1 used waves 1-3). Wave 4 = the two foundations that both edit User.java (MFA model V3, revocation epoch/jti V4) — sequenced to avoid a User.java merge conflict. Wave 5 = the MFA flow chain (enrol/activate, login challenge, disable, role enforcement) which shares the MFA service + login flow, run sequentially. Wave 6 = revocation app-layer (admin revoke, refresh absolute cap) which touch different files and run in parallel.",
   "waves": [
     {
-      "no": 1,
-      "label": "Wave 1 — CI core (foundation)",
+      "no": 4,
+      "label": "Wave 4 — Foundations (MFA model + revocation epoch)",
       "mode": "sequential",
-      "issues": [15],
-      "blurb": "ci.yml with a postgres:16 service container running ./mvnw -B verify, proven green on a PR to dev. Test DB overridden via TEST_DB_URL/USERNAME/PASSWORD env (see #15 stage-4 note). Everything else extends this file or depends on its check name."
+      "issues": [28, 33],
+      "blurb": "#28 (MFA model + V3) and #33 (jti + tokens_invalid_before + V4) both add columns to users/User.java — run one at a time to avoid a merge conflict on the entity. Each is the base for its feature's later issues."
     },
     {
-      "no": 2,
-      "label": "Wave 2 — ci.yml extensions (sequential)",
+      "no": 5,
+      "label": "Wave 5 — MFA flows",
       "mode": "sequential",
-      "issues": [16, 18],
-      "blurb": "Both edit .github/workflows/ci.yml, so run one at a time to avoid merge conflicts: #16 (Maven cache) then #18 (Trivy HIGH/CRITICAL scan). Each branches off dev after the prior merges."
+      "issues": [29, 30, 31, 32],
+      "blurb": "Enrol/activate (#29) -> login challenge LOCAL+social (#30) -> disable (#31) -> role-mandatory enforcement (#32). Share the MFA service and the login flow (AuthService/OAuth2SuccessHandler), so sequential. All depend on #28."
     },
     {
-      "no": 3,
-      "label": "Wave 3 — Independent (parallel)",
+      "no": 6,
+      "label": "Wave 6 — Revocation app-layer (parallel)",
       "mode": "parallel-2",
-      "issues": [17, 19],
-      "blurb": "#17 (new .github/dependabot.yml) and #19 (enable required-status-check branch protection on dev via gh api) touch neither ci.yml nor each other. #19 depends only on Wave 1's stable check name."
+      "issues": [34, 35],
+      "blurb": "#34 (admin revoke endpoint, AdminController) and #35 (refresh absolute-lifetime cap, RefreshTokenService + V5) touch different files and only depend on Wave 4's #33 — can run concurrently."
     }
   ]
 }
