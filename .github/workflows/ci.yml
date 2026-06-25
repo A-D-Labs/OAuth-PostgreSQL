@@ -45,6 +45,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+          # Cache ~/.m2 keyed on pom.xml so warm runs skip dependency downloads.
+          cache: maven
 
       - name: Build & test (verify)
         # Surefire (*Test) + Failsafe (*IT) both run in the verify phase.
