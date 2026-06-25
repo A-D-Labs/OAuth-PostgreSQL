@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "summary": "Robustness epic, Tier 1 (CI/CD) — sprint 2026-W26. A GitHub Actions build+test+scan gate on dev. Wave 1 lands the foundational workflow (Postgres service container + ./mvnw verify); Wave 2 fans out three independent extensions (Maven cache, Dependabot, Trivy scan) that touch separate files/areas; Wave 3 wires enforcement (required status check on dev) once Wave 1's check name is stable. Tier 2/3 are deferred to future sprints.",
+  "waves": [
+    {
+      "no": 1,
+      "label": "Wave 1 — CI core (foundation)",
+      "mode": "sequential",
+      "issues": [15],
+      "blurb": "The ci.yml workflow with a postgres:16 service container running ./mvnw -B verify, proven green on a PR to dev. Everything else extends this file or depends on its check name."
+    },
+    {
+      "no": 2,
+      "label": "Wave 2 — Independent CI extensions",
+      "mode": "parallel-4",
+      "issues": [16, 17, 18],
+      "blurb": "Maven cache (#16, edits the workflow), Dependabot (#17, new .github/dependabot.yml), Trivy scan (#18, adds a workflow step). Low mutual conflict; #16/#18 touch ci.yml so coordinate, #17 is fully independent."
+    },
+    {
+      "no": 3,
+      "label": "Wave 3 — Enforce the gate",
+      "mode": "sequential",
+      "issues": [19],
+      "blurb": "Enable required-status-check branch protection on dev via gh api. Depends on Wave 1 — the check name must be stable first."
+    }
+  ]
+}
