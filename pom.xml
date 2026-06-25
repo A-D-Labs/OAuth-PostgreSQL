@@ -173,6 +173,12 @@
       <artifactId>mockito-core</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- TOTP (RFC 6238) for MFA: secret generation, otpauth:// provisioning URI, code verification. -->
+    <dependency>
+      <groupId>dev.samstevens.totp</groupId>
+      <artifactId>totp</artifactId>
+      <version>1.7.1</version>
+    </dependency>
   </dependencies>
 
   <build>
