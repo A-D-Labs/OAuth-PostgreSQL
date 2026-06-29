@@ -16,6 +16,16 @@ Default profile is unchanged (in-process Caffeine). Redis, when enabled, is cons
 
 ## Consequences
 
-- Operators can scale to >1 replica with consistent rate limiting by enabling the `redis` profile + pointing at a Redis instance.
+- Operators can scale to >1 replica with consistent rate limiting by enabling the `redis` store + pointing at a Redis instance.
 - No Redis dependency for auth correctness; sessions remain Postgres-durable (ADR-0007).
 - The existing `spring-boot-starter-data-redis` + `bucket4j-redis` scaffolding is now actually wired behind the abstraction.
+
+## Enabling Redis for a multi-replica deploy
+
+The store is selected by one property, `app.security.rate-limiting.store` (env `RATE_LIMIT_STORE`), defaulting to `caffeine`. To run more than one replica with shared throttling:
+
+1. Set `RATE_LIMIT_STORE=redis` on **every** replica. This activates `RedisRateLimitStore` and `RedisRateLimitConfig`; `CaffeineRateLimitStore` is switched off by the same condition (so exactly one `RateLimitStore` bean exists).
+2. Point the standard Spring Redis properties at your instance — `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_SSL` (already wired in `application.yaml` under `spring.data.redis.*`).
+3. Leave `RATE_LIMIT_STORE` unset (or `caffeine`) for single-instance and for `dev`/`test` — those run in-process with no Redis reachable (ADR-0003). The test suite never sets it, so CI needs no Redis.
+
+Bucket keys are namespaced `rate-limit:<store>:<key>` in Redis and expire one hour after last write (a full refill window), so abandoned keys are reclaimed automatically. Only the rate-limit filter path touches Redis; the JWT validation fast-path is untouched.

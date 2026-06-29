@@ -3,6 +3,7 @@ package com.template.OAuth.service;
 import com.template.OAuth.ratelimit.RateLimitStore;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
+import io.github.bucket4j.BucketConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
@@ -30,7 +31,7 @@ public class RateLimitService {
      * limit
      */
     public Bucket resolveBucketForAuthRequest(@NonNull String ipAddress) {
-        return rateLimitStore.resolveBucket("ipCache", ipAddress, () -> Bucket.builder()
+        return rateLimitStore.resolveBucket("ipCache", ipAddress, () -> BucketConfiguration.builder()
                 .addLimit(authRateLimit)
                 .build());
     }
@@ -40,7 +41,7 @@ public class RateLimitService {
      * operation limit
      */
     public Bucket resolveBucketForSensitiveOperation(@NonNull String ipAddress) {
-        return rateLimitStore.resolveBucket("ipCache", ipAddress + ":sensitive", () -> Bucket.builder()
+        return rateLimitStore.resolveBucket("ipCache", ipAddress + ":sensitive", () -> BucketConfiguration.builder()
                 .addLimit(sensitiveOperationsLimit)
                 .build());
     }
@@ -49,7 +50,7 @@ public class RateLimitService {
      * Get or create a rate limiter bucket for a specific user
      */
     public Bucket resolveBucketForUser(@NonNull String username) {
-        return rateLimitStore.resolveBucket("userCache", username, () -> Bucket.builder()
+        return rateLimitStore.resolveBucket("userCache", username, () -> BucketConfiguration.builder()
                 .addLimit(authRateLimit)
                 .build());
     }
@@ -58,9 +59,10 @@ public class RateLimitService {
      * Get or create a rate limiter bucket for a specific endpoint
      */
     public Bucket resolveBucketForEndpoint(@NonNull String endpoint) {
-        return rateLimitStore.resolveBucket("endpointCache", Objects.requireNonNull(endpoint), () -> Bucket.builder()
-                .addLimit(authRateLimit)
-                .build());
+        return rateLimitStore.resolveBucket("endpointCache", Objects.requireNonNull(endpoint),
+                () -> BucketConfiguration.builder()
+                        .addLimit(authRateLimit)
+                        .build());
     }
 
     /**
