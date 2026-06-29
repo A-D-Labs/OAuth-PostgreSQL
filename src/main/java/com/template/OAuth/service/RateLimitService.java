@@ -1,28 +1,26 @@
 package com.template.OAuth.service;
 
+import com.template.OAuth.ratelimit.RateLimitStore;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.Cache;
-import org.springframework.cache.CacheManager;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 
 import java.util.Objects;
-import java.util.concurrent.Callable;
 
 @Service
 public class RateLimitService {
 
-    private final CacheManager cacheManager;
+    private final RateLimitStore rateLimitStore;
     private final Bandwidth authRateLimit;
     private final Bandwidth sensitiveOperationsLimit;
 
     @Autowired
-    public RateLimitService(CacheManager cacheManager,
+    public RateLimitService(RateLimitStore rateLimitStore,
             Bandwidth authRateLimit,
             Bandwidth sensitiveOperationsLimit) {
-        this.cacheManager = cacheManager;
+        this.rateLimitStore = rateLimitStore;
         this.authRateLimit = authRateLimit;
         this.sensitiveOperationsLimit = sensitiveOperationsLimit;
     }
@@ -32,7 +30,7 @@ public class RateLimitService {
      * limit
      */
     public Bucket resolveBucketForAuthRequest(@NonNull String ipAddress) {
-        return getBucketFromCache("ipCache", ipAddress, () -> Bucket.builder()
+        return rateLimitStore.resolveBucket("ipCache", ipAddress, () -> Bucket.builder()
                 .addLimit(authRateLimit)
                 .build());
     }
@@ -42,7 +40,7 @@ public class RateLimitService {
      * operation limit
      */
     public Bucket resolveBucketForSensitiveOperation(@NonNull String ipAddress) {
-        return getBucketFromCache("ipCache", ipAddress + ":sensitive", () -> Bucket.builder()
+        return rateLimitStore.resolveBucket("ipCache", ipAddress + ":sensitive", () -> Bucket.builder()
                 .addLimit(sensitiveOperationsLimit)
                 .build());
     }
@@ -51,7 +49,7 @@ public class RateLimitService {
      * Get or create a rate limiter bucket for a specific user
      */
     public Bucket resolveBucketForUser(@NonNull String username) {
-        return getBucketFromCache("userCache", username, () -> Bucket.builder()
+        return rateLimitStore.resolveBucket("userCache", username, () -> Bucket.builder()
                 .addLimit(authRateLimit)
                 .build());
     }
@@ -60,32 +58,9 @@ public class RateLimitService {
      * Get or create a rate limiter bucket for a specific endpoint
      */
     public Bucket resolveBucketForEndpoint(@NonNull String endpoint) {
-        return getBucketFromCache("endpointCache", Objects.requireNonNull(endpoint), () -> Bucket.builder()
+        return rateLimitStore.resolveBucket("endpointCache", Objects.requireNonNull(endpoint), () -> Bucket.builder()
                 .addLimit(authRateLimit)
                 .build());
-    }
-
-    /**
-     * Helper method to get or create a bucket from cache
-     */
-    private Bucket getBucketFromCache(@NonNull String cacheName, @NonNull String key, Callable<Bucket> bucketSupplier) {
-        Cache cache = cacheManager.getCache(cacheName);
-        if (cache == null) {
-            throw new IllegalStateException("Cache not found: " + cacheName);
-        }
-
-        Cache.ValueWrapper wrapper = cache.get(key);
-        if (wrapper != null) {
-            return (Bucket) wrapper.get();
-        }
-
-        try {
-            Bucket bucket = bucketSupplier.call();
-            cache.put(key, bucket);
-            return bucket;
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to create rate limit bucket", e);
-        }
     }
 
     /**
