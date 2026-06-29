@@ -69,8 +69,10 @@ public class SessionIssuer {
      * after ALL factors are satisfied.
      */
     public void issueSession(User user, HttpServletResponse response) {
-        String token = jwtTokenProvider.generateToken(user.getEmail());
+        // Create the session row first so the access token can carry its sid (ADR-0007):
+        // the JWT's sid lets "list my sessions" flag the caller's current device.
         RefreshToken refreshToken = refreshTokenService.generateRefreshToken(user);
+        String token = jwtTokenProvider.generateToken(user.getEmail(), refreshToken.getSessionId());
 
         long accessTtlSeconds = appProperties.getSecurity().getJwt().getExpiration() / 1000;
         long refreshTtlSeconds = appProperties.getSecurity().getRefresh().getExpiration() / 1000;
