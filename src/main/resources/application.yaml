@@ -78,6 +78,13 @@ app:
       # Roles for which MFA is mandatory (comma-separated). Holders without active MFA are
       # forced to enrol at login before any session is issued. Empty = MFA fully opt-in.
       required-roles: ${MFA_REQUIRED_ROLES:ADMIN}
+    rate-limiting:
+      # Backing store for rate-limit buckets:
+      #   caffeine (default) — in-process, correct for a single replica, zero extra infra.
+      #   redis              — buckets shared across replicas via spring.data.redis.* + bucket4j-redis.
+      #                        Set this on every replica when running >1 instance so throttling is
+      #                        consistent (ADR-0008). Requires Redis reachable; sessions stay in Postgres.
+      store: ${RATE_LIMIT_STORE:caffeine}
     # Only trust X-Forwarded-For for client-IP/rate-limiting when behind a trusted proxy.
     # Default false so a direct client cannot spoof XFF to evade auth throttling.
     trust-proxy: ${TRUST_PROXY:false}
