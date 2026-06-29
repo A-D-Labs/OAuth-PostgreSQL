@@ -70,9 +70,13 @@ app:
       - ${FRONTEND_URL:http://localhost:3000}
       - http://localhost:5173
 
-  # (Optional) legacy fields some code may reference
-  frontend-url: ${FRONTEND_URL:http://localhost:3000}
-  login-success-redirect-url: ${LOGIN_SUCCESS_REDIRECT_URL:/home}
+  # (Optional) legacy fields some code may reference.
+  # Dev default points the post-login redirect back at the backend's own test harness
+  # (DevTestLoginController, /dev/test-login on :8080) so a real Google/Microsoft sign-in lands
+  # somewhere you can eyeball it, instead of a non-existent frontend on :3000. Override either
+  # with FRONTEND_URL / LOGIN_SUCCESS_REDIRECT_URL when running against a real frontend.
+  frontend-url: ${FRONTEND_URL:http://localhost:8080}
+  login-success-redirect-url: ${LOGIN_SUCCESS_REDIRECT_URL:/dev/test-login}
   mail:
     enabled: true
 

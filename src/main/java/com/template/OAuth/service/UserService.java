@@ -263,12 +263,8 @@ public class UserService {
         // Convert the provider name/URL to a supported enum value
         if (providerName.contains("google")) {
             return AuthProvider.GOOGLE;
-        } else if (providerName.contains("spotify")) {
-            return AuthProvider.SPOTIFY;
-        } else if (providerName.contains("apple")) {
-            return AuthProvider.APPLE;
-        } else if (providerName.contains("soundcloud")) {
-            return AuthProvider.SOUNDCLOUD;
+        } else if (providerName.contains("microsoft")) {
+            return AuthProvider.MICROSOFT;
         }
         // Default to GOOGLE if unknown
         return AuthProvider.GOOGLE;
@@ -280,9 +276,7 @@ public class UserService {
     private void setProviderId(User user, AuthProvider provider, String providerId) {
         switch (provider) {
             case GOOGLE -> user.setGoogleId(providerId);
-            case SPOTIFY -> user.setSpotifyId(providerId);
-            case APPLE -> user.setAppleId(providerId);
-            case SOUNDCLOUD -> user.setSoundcloudId(providerId);
+            case MICROSOFT -> user.setMicrosoftId(providerId);
             case LOCAL -> {
                 /* no external provider ID to set for LOCAL */ }
         }
@@ -312,12 +306,8 @@ public class UserService {
         switch (provider) {
             case GOOGLE:
                 return userRepository.findByGoogleId(providerId);
-            case SPOTIFY:
-                return userRepository.findBySpotifyId(providerId);
-            case APPLE:
-                return userRepository.findByAppleId(providerId);
-            case SOUNDCLOUD:
-                return userRepository.findBySoundcloudId(providerId);
+            case MICROSOFT:
+                return userRepository.findByMicrosoftId(providerId);
             default:
                 return Optional.empty();
         }

@@ -79,13 +79,7 @@ public class User {
     private String googleId;
 
     @Column(unique = true)
-    private String spotifyId;
-
-    @Column(unique = true)
-    private String appleId;
-
-    @Column(unique = true)
-    private String soundcloudId;
+    private String microsoftId;
 
     // Extended profile information
     private String biography;

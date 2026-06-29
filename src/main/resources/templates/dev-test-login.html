@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>OAuth-PostgreSQL — Dev Login Test Harness</title>
+    <style>
+        :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+        body { max-width: 720px; margin: 40px auto; padding: 0 16px; color: #1b1b1f; }
+        h1 { font-size: 1.4rem; }
+        .muted { color: #666; }
+        .btns { display: flex; gap: 12px; margin: 20px 0; flex-wrap: wrap; }
+        a.btn, button {
+            display: inline-block; padding: 10px 18px; border-radius: 8px; border: 1px solid #d0d0d7;
+            background: #fff; color: #1b1b1f; text-decoration: none; font-size: 0.95rem; cursor: pointer;
+        }
+        a.btn.google { border-color: #4285f4; }
+        a.btn.microsoft { border-color: #2f2f9e; }
+        pre { background: #f5f5f7; padding: 14px; border-radius: 8px; overflow: auto; font-size: 0.85rem; }
+        .status { padding: 10px 14px; border-radius: 8px; margin: 14px 0; }
+        .status.in { background: #e6f4ea; }
+        .status.out { background: #fdecea; }
+        code { background: #f0f0f3; padding: 1px 5px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>OAuth-PostgreSQL — Dev Login Test Harness</h1>
+    <p class="muted">
+        Dev-profile only. Click a provider to run the real OAuth flow; on return this page reads
+        <code>/api/user/profile</code> and <code>/api/user/sessions</code> via the issued <code>jwt</code> cookie.
+    </p>
+
+    <div class="btns">
+        <a class="btn google" href="/oauth2/authorization/google">Login with Google</a>
+        <a class="btn microsoft" href="/oauth2/authorization/microsoft">Login with Microsoft</a>
+        <button id="refresh" type="button">Refresh status</button>
+        <button id="logout" type="button">Logout</button>
+    </div>
+
+    <div id="status" class="status out">Checking login status…</div>
+
+    <h3>Current User <span class="muted">(/api/user/profile)</span></h3>
+    <pre id="profile">—</pre>
+
+    <h3>Active Sessions <span class="muted">(/api/user/sessions)</span></h3>
+    <pre id="sessions">—</pre>
+
+    <script>
+        async function load() {
+            const statusEl = document.getElementById('status');
+            const profileEl = document.getElementById('profile');
+            const sessionsEl = document.getElementById('sessions');
+            try {
+                const res = await fetch('/api/user/profile', { credentials: 'same-origin' });
+                if (res.ok) {
+                    const user = await res.json();
+                    statusEl.className = 'status in';
+                    statusEl.textContent = 'Logged in as ' + (user.email || user.name || 'unknown')
+                        + ' — primary provider: ' + (user.primaryProvider || '?');
+                    profileEl.textContent = JSON.stringify(user, null, 2);
+                    const s = await fetch('/api/user/sessions', { credentials: 'same-origin' });
+                    sessionsEl.textContent = s.ok ? JSON.stringify(await s.json(), null, 2)
+                                                   : 'sessions: HTTP ' + s.status;
+                } else {
+                    statusEl.className = 'status out';
+                    statusEl.textContent = 'Not logged in (HTTP ' + res.status + '). Pick a provider above.';
+                    profileEl.textContent = '—';
+                    sessionsEl.textContent = '—';
+                }
+            } catch (e) {
+                statusEl.className = 'status out';
+                statusEl.textContent = 'Error talking to backend: ' + e;
+            }
+        }
+        async function logout() {
+            try { await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' }); } catch (e) {}
+            load();
+        }
+        document.getElementById('refresh').addEventListener('click', load);
+        document.getElementById('logout').addEventListener('click', logout);
+        load();
+    </script>
+</body>
+</html>
