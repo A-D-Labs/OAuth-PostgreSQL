@@ -78,7 +78,11 @@ public class SecurityConfig {
                 "/api-docs/**",
                 "/v3/api-docs.yaml",
                 "/management/health",
-                "/management/info"
+                "/management/info",
+                // Dev-only manual OAuth test harness (DevTestLoginController, @Profile("dev")).
+                // The controller exists only under the dev profile, so this matcher resolves to a
+                // 404 in test/prod — it grants no real surface there.
+                "/dev/test-login"
         };
 
         // CSRF token handler
