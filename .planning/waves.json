@@ -1,27 +1,20 @@
 {
   "schema_version": 1,
-  "summary": "Robustness iteration 3 (final deferred slice), sprint 2026-W26: multi-device sessions (2b) + Redis rate-limit (3a). #25 CVE remediation already merged. Option A: sessions stay in PostgreSQL, Redis only for rate-limit buckets (Caffeine default). Waves continue the numbering (1-6 used). Wave 7 lands the token-model foundation (the breaking @OneToOne -> @ManyToOne rewrite + V6); Wave 8 runs the session endpoints (#48, depends on #47) in parallel with the Redis abstraction refactor (#49, independent files); Wave 9 adds the Redis-backed store (#50, depends on #49).",
+  "summary": "Sprint 2026-W27: provider rationalization (PRD #62). Lock the v1 provider surface to Google + Microsoft; drop the half-wired Spotify/Apple/SoundCloud scaffolding. Microsoft wired with audience 'common'. Two sequential tracer-bullet slices: Wave 10 lands the domain+schema swap (AuthProvider enum, User.microsoftId, V7 migration, UserService mapping); Wave 11 wires Microsoft OIDC login end-to-end and records the decision (SecurityConfig/yaml, OAuth2ProviderLoginIT, CONTEXT.md, ADR-0009). Sequential: 11 depends on 10. Security depth elsewhere is frozen.",
   "waves": [
     {
-      "no": 7,
-      "label": "Wave 7 — Multi-device foundation",
+      "no": 10,
+      "label": "Wave 10 — Provider set: domain + schema",
       "mode": "sequential",
-      "issues": [47],
-      "blurb": "Token-model rewrite: RefreshToken @ManyToOne + session_id + device metadata, per-login row, per-session reuse detection, migration V6. Breaking change; everything else builds on it."
+      "issues": [63],
+      "blurb": "#63 — AuthProvider enum (drop 3, add MICROSOFT), User.microsoftId, V7 migration (drop spotify/apple/soundcloud columns+constraints, add microsoft_id), UserService mapping. Foundation; must compile + migrate + unit-test green."
     },
     {
-      "no": 8,
-      "label": "Wave 8 — Session endpoints + Redis abstraction (parallel)",
-      "mode": "parallel-2",
-      "issues": [48, 49],
-      "blurb": "#48 (list/revoke session endpoints — depends on #47, touches RefreshTokenService/controller) and #49 (RateLimitStore abstraction + Caffeine default — independent, touches rate-limit code). Different files, run concurrently."
-    },
-    {
-      "no": 9,
-      "label": "Wave 9 — Redis-backed store",
+      "no": 11,
+      "label": "Wave 11 — Wire Microsoft OIDC + docs",
       "mode": "sequential",
-      "issues": [50],
-      "blurb": "Profile-activated Redis-backed rate-limit store (bucket4j-redis). Depends on Wave 8's #49 abstraction."
+      "issues": [64],
+      "blurb": "#64 — Microsoft oauth2Login registration (audience 'common'), adapt OAuth2ProviderLoginIT for Google+Microsoft, CONTEXT.md AuthProvider term, ADR-0009. Depends on Wave 10."
     }
   ]
 }
