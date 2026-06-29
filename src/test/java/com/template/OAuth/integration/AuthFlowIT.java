@@ -137,9 +137,9 @@ class AuthFlowIT extends BaseIntegrationTest {
         // DB has a refresh token for the user
         Optional<User> afterLoginUser = userRepository.findByEmail(email);
         assertThat(afterLoginUser).isPresent();
-        Optional<RefreshToken> storedRT = refreshTokenRepository.findByUser(afterLoginUser.get());
-        assertThat(storedRT).isPresent();
-        String originalRefreshValue = storedRT.get().getToken();
+        java.util.List<RefreshToken> storedRTs = refreshTokenRepository.findByUser(afterLoginUser.get());
+        assertThat(storedRTs).hasSize(1);
+        String originalRefreshValue = storedRTs.get(0).getToken();
 
         // === 4) REFRESH -> rotation + new cookies ===
         MvcResult refreshResult = mockMvc.perform(post("/refresh-token")
@@ -162,7 +162,7 @@ class AuthFlowIT extends BaseIntegrationTest {
         assertThat(newJwtCookie.getPath()).isEqualTo("/");
 
         // DB shows rotation (stored refresh token changed + expiry in the future)
-        RefreshToken afterRefresh = refreshTokenRepository.findByUser(afterLoginUser.get()).orElseThrow();
+        RefreshToken afterRefresh = refreshTokenRepository.findByUser(afterLoginUser.get()).get(0);
         assertThat(afterRefresh.getToken()).isNotEqualTo(originalRefreshValue);
         assertThat(afterRefresh.getExpiryDate()).isAfter(Instant.now());
     }

@@ -6,6 +6,7 @@ import com.template.OAuth.entities.User;
 import com.template.OAuth.enums.AuditEventType;
 import com.template.OAuth.enums.Role;
 import com.template.OAuth.service.MessageService;
+import com.template.OAuth.service.RefreshTokenService;
 import com.template.OAuth.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -20,6 +21,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,11 +37,14 @@ public class AdminController {
 
     private final UserService userService;
     private final MessageService messageService;
+    private final RefreshTokenService refreshTokenService;
 
     @Autowired
-    public AdminController(UserService userService, MessageService messageService) {
+    public AdminController(UserService userService, MessageService messageService,
+                          RefreshTokenService refreshTokenService) {
         this.userService = userService;
         this.messageService = messageService;
+        this.refreshTokenService = refreshTokenService;
     }
 
     @Operation(summary = "Assign role to user",
@@ -99,6 +104,33 @@ public class AdminController {
         response.put("email", email);
         response.put("role", role.name());
 
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Revoke a user's access (ban / forced-logout)",
+            description = "Immediately invalidates all of a user's access tokens and deletes their "
+                    + "refresh tokens (Admin access required)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Access revoked"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content),
+            @ApiResponse(responseCode = "404", description = "User not found", content = @Content)
+    })
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/revoke-sessions")
+    @Auditable(type = AuditEventType.USER_UPDATED, description = "Admin revoked user access (forced logout)", includeArgs = true)
+    public ResponseEntity<Map<String, String>> revokeSessions(
+            @Parameter(description = "User email", required = true) @RequestParam String email) {
+        User user = userService.findUserByEmail(email);
+        // Advance the revocation epoch: every access token issued before now is now rejected.
+        user.setTokensInvalidBefore(Instant.now());
+        userService.saveUser(user);
+        // And drop refresh tokens so no new access token can be minted.
+        refreshTokenService.revokeAllForUser(email);
+
+        Map<String, String> response = new HashMap<>();
+        response.put("message", "User access revoked");
+        response.put("email", email);
         return ResponseEntity.ok(response);
     }
 

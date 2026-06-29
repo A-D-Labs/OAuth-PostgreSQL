@@ -47,6 +47,19 @@ public class User {
     @Column(length = 60)
     private String password;
 
+    // MFA / TOTP (Tier 2a). totpSecret is recoverable (needed to verify codes);
+    // recovery codes are hashed and live in mfa_recovery_codes.
+    @Column(name = "mfa_enabled", nullable = false)
+    private boolean mfaEnabled = false;
+
+    @Column(name = "totp_secret")
+    private String totpSecret;
+
+    // Access-token revocation epoch (Tier 2c). Access tokens issued before this instant
+    // are rejected. Set on admin ban / forced-logout; null means "never revoked".
+    @Column(name = "tokens_invalid_before")
+    private Instant tokensInvalidBefore;
+
     @Column(length = 64)
     private String verificationToken;
 

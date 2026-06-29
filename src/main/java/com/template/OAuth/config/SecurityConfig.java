@@ -67,6 +67,8 @@ public class SecurityConfig {
                 "/auth/forgot-password",
                 "/auth/reset-password",
                 "/auth/login-url",
+                // MFA second-factor: reached with only the challenge cookie (no session yet).
+                "/auth/mfa/verify",
                 "/refresh-token",
                 "/oauth2/**",
                 "/login/oauth2/**",

@@ -3,6 +3,7 @@
 ## Project at a glance
 
 - **What:** TBD. Mirror copy of `Nootje88/OAuth` (Spring Boot Maven backend template), now to be paired with PostgreSQL and evolved independently. Mission to be locked in `/grill-with-docs`.
+- **Repository home:** `A-D-Labs/OAuth-PostgreSQL` (transferred from `Nootje88/OAuth-PostgreSQL` on 2026-06-25 so the org's paid plan can enforce the CI gate on `dev`). A stale 2026-06-09 mirror was renamed aside to `A-D-Labs/OAuth-PostgreSQL-archived-2026-06-09`. GitHub keeps redirects from the old `Nootje88` URL, but origin now points at A-D-Labs.
 - **Origin:** mirror-pushed from `Nootje88/OAuth` on 2026-06-09. Full git history preserved. **No upstream fork relationship.**
 - **Audience:** TBD (personal-dev for now; may be promoted to a Dimoit `product` if grill outcomes warrant).
 - **Project map (canonical):** `~/.openclaw/workspace/projects/oauth-postgresql/README.md`.

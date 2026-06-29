@@ -76,7 +76,10 @@ public class AppProperties {
         @Getter
         @Setter
         public static class Refresh {
-            private long expiration = 604800000; // 7 days in milliseconds
+            private long expiration = 604800000; // 7 days in milliseconds (idle timeout)
+            // Absolute ceiling on a refresh family's age regardless of rotation; past this the
+            // user must re-authenticate. Default 30 days.
+            private long absoluteExpiration = 2592000000L; // 30 days in milliseconds
         }
 
         @Getter
@@ -88,6 +91,13 @@ public class AppProperties {
             private int sensitiveLimit = 3;
             private int blockDurationMinutes = 30;
             private int maxFailedAttempts = 5;
+            /**
+             * Backing store for rate-limit buckets: "caffeine" (default, in-process,
+             * single-replica) or "redis" (shared across replicas, needs Redis reachable;
+             * see RedisRateLimitConfig / ADR-0008). The bean wiring keys off this same
+             * property, so the test profile leaves it unset and stays in-memory.
+             */
+            private String store = "caffeine";
         }
 
         @Getter

@@ -1,0 +1,8 @@
+# Trivy ignore file — documented, justified vulnerability exceptions only.
+#
+# Add an entry ONLY when a finding is genuinely unfixable/not-applicable. Each entry
+# carries a justification + review date. Never silence the gate without a paper trail.
+#
+# The 34-CVE baseline added with the Trivy gate (#18) was REMEDIATED in #25 via the
+# Spring Boot 3.4 -> 3.5.14 bump plus jackson/netty/tomcat/postgresql version overrides,
+# so this file is empty again. Any future documented exception goes below.

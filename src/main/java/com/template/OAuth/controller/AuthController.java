@@ -165,9 +165,15 @@ public class AuthController {
             HttpServletResponse response) {
 
         try {
-            authService.authenticateAndGenerateTokens(loginRequest, response);
+            var outcome = authService.authenticateAndGenerateTokens(loginRequest, response);
             metricsService.incrementAuthSuccess();
-            return ResponseEntity.ok(new AuthResponse(null, messageService.getMessage("auth.login.success")));
+            return switch (outcome) {
+                // Password accepted but a second factor / enrolment is required; no session yet.
+                case MFA_CHALLENGE -> ResponseEntity.ok(new AuthResponse(null, "MFA verification required"));
+                case MFA_ENROLMENT_REQUIRED -> ResponseEntity.ok(new AuthResponse(null, "MFA enrolment required"));
+                case SESSION_ISSUED -> ResponseEntity.ok(
+                        new AuthResponse(null, messageService.getMessage("auth.login.success")));
+            };
         } catch (ApiException e) {
             metricsService.incrementAuthFailure();
             return ResponseEntity.status(e.getStatus())

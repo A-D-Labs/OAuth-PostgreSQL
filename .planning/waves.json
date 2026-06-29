@@ -1,34 +1,27 @@
 {
   "schema_version": 1,
-  "summary": "AFK plan for the MySQL->PostgreSQL conversion of the OAuth template (6 issues, all AFK-ready). Grouping follows file-conflict and dependency lines: the conversion core (#3) touches pom + app config + migration + test config and must land alone before anything that also edits those files; verification (#4 tests) and the docker/ops layer (#5) then run in parallel because they touch disjoint files; dead-dep cleanup (#6) goes last since it edits pom after the testcontainers swap. The baseline gate (#1) and the independent CI/docs cleanup (#2) start immediately and share no files. No HITL issues; no dependency-blocked stragglers beyond the stated chain.",
+  "summary": "Robustness iteration 3 (final deferred slice), sprint 2026-W26: multi-device sessions (2b) + Redis rate-limit (3a). #25 CVE remediation already merged. Option A: sessions stay in PostgreSQL, Redis only for rate-limit buckets (Caffeine default). Waves continue the numbering (1-6 used). Wave 7 lands the token-model foundation (the breaking @OneToOne -> @ManyToOne rewrite + V6); Wave 8 runs the session endpoints (#48, depends on #47) in parallel with the Redis abstraction refactor (#49, independent files); Wave 9 adds the Redis-backed store (#50, depends on #49).",
   "waves": [
     {
-      "no": 1,
-      "label": "Wave 1 — Baseline gate + independent cleanup",
-      "mode": "parallel-2",
-      "issues": [1, 2],
-      "blurb": "#1 verifies the current MySQL template is green (the gate that blocks all conversion work). #2 removes azure-pipelines.yml and updates the README — fully independent (touches only azure-pipelines.yml + README), zero overlap with the app conversion, so it runs in parallel."
-    },
-    {
-      "no": 2,
-      "label": "Wave 2 — Core conversion",
+      "no": 7,
+      "label": "Wave 7 — Multi-device foundation",
       "mode": "sequential",
-      "issues": [3],
-      "blurb": "The irreducible vertical slice: driver + dialect + all profiles + V1 migration rewrite + health label so the app boots and ddl-auto:validate passes on Postgres. Runs alone because it touches the files every later issue also edits (pom, application*.yaml, test config). Blocked by #1."
+      "issues": [47],
+      "blurb": "Token-model rewrite: RefreshToken @ManyToOne + session_id + device metadata, per-login row, per-session reuse detection, migration V6. Breaking change; everything else builds on it."
     },
     {
-      "no": 3,
-      "label": "Wave 3 — Verify + ops layer",
+      "no": 8,
+      "label": "Wave 8 — Session endpoints + Redis abstraction (parallel)",
       "mode": "parallel-2",
-      "issues": [4, 5],
-      "blurb": "#4 (full test suite green on Testcontainers-Postgres) and #5 (docker-compose + backup.sh + .env.template to Postgres) touch disjoint file sets — test/app vs docker/ — so they parallelize safely. Both blocked by #3."
+      "issues": [48, 49],
+      "blurb": "#48 (list/revoke session endpoints — depends on #47, touches RefreshTokenService/controller) and #49 (RateLimitStore abstraction + Caffeine default — independent, touches rate-limit code). Different files, run concurrently."
     },
     {
-      "no": 4,
-      "label": "Wave 4 — Dead-dependency cleanup",
+      "no": 9,
+      "label": "Wave 9 — Redis-backed store",
       "mode": "sequential",
-      "issues": [6],
-      "blurb": "Remove mysql-connector-j, flyway-mysql, org.json, android-json, and H2 from pom.xml. Last because it edits pom after #4's testcontainers swap and must keep the suite green. Blocked by #4."
+      "issues": [50],
+      "blurb": "Profile-activated Redis-backed rate-limit store (bucket4j-redis). Depends on Wave 8's #49 abstraction."
     }
   ]
 }

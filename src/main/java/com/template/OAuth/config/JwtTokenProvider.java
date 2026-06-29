@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey; // NOTE: javax, not jakarta
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -25,6 +26,12 @@ public class JwtTokenProvider {
 
     /** The insecure built-in default that older configs shipped — must never be used. */
     private static final String INSECURE_DEFAULT_SECRET = "defaultsecretkey12345678901234567890";
+
+    /** MFA challenge token lifetime (5 minutes). */
+    private static final long MFA_CHALLENGE_TTL_MS = 300_000L;
+
+    /** MFA enrol-only token lifetime (10 minutes) — enough to scan a QR + enter a code. */
+    private static final long MFA_ENROL_TTL_MS = 600_000L;
 
     @Value("${app.security.jwt.secret}")
     private String jwtSecret;
@@ -67,6 +74,15 @@ public class JwtTokenProvider {
     }
 
     public String generateToken(String email) {
+        return generateToken(email, null);
+    }
+
+    /**
+     * Issue an access token bound to a session via the {@code sid} claim (multi-device, ADR-0007).
+     * The sid lets "list my sessions" flag which row is the caller's current device without a DB
+     * lookup on the access-token fast-path. A null sessionId omits the claim (legacy callers).
+     */
+    public String generateToken(String email, String sessionId) {
         UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
         List<String> roles = userDetails.getAuthorities().stream()
@@ -76,18 +92,89 @@ public class JwtTokenProvider {
         Date now = new Date();
         Date exp = new Date(now.getTime() + appProperties.getSecurity().getJwt().getExpiration());
 
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(email)
+                .id(UUID.randomUUID().toString()) // jti — enables future per-token deny-list (with Redis)
                 .claim("roles", roles)
                 .issuedAt(now)
-                .expiration(exp)
-                // 0.12.x: use SecureDigestAlgorithm from Jwts.SIG
-                .signWith(getSigningKey(), Jwts.SIG.HS256)
-                .compact();
+                .expiration(exp);
+        if (sessionId != null) {
+            builder.claim("sid", sessionId);
+        }
+        // 0.12.x: use SecureDigestAlgorithm from Jwts.SIG
+        return builder.signWith(getSigningKey(), Jwts.SIG.HS256).compact();
+    }
+
+    /** The session id ({@code sid} claim) this access token is bound to, or null if absent/unreadable. */
+    public String getSessionId(String token) {
+        try {
+            return parseClaims(token).get("sid", String.class);
+        } catch (JwtException | IllegalArgumentException e) {
+            return null;
+        }
     }
 
     public String getEmailFromToken(String token) {
         return parseClaims(token).getSubject();
+    }
+
+    /** The token's issued-at instant, or null if unreadable. Used for the per-user revocation epoch. */
+    public Instant getIssuedAt(String token) {
+        try {
+            Date issued = parseClaims(token).getIssuedAt();
+            return issued == null ? null : issued.toInstant();
+        } catch (JwtException | IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    /** Short-lived (5 min) one-time token marking a pending MFA second factor. Not a session. */
+    public String generateMfaChallengeToken(String email) {
+        Date now = new Date();
+        Date exp = new Date(now.getTime() + MFA_CHALLENGE_TTL_MS);
+        return Jwts.builder()
+                .subject(email)
+                .id(UUID.randomUUID().toString())
+                .claim("mfa_challenge", true)
+                .issuedAt(now)
+                .expiration(exp)
+                .signWith(getSigningKey(), Jwts.SIG.HS256)
+                .compact();
+    }
+
+    /** True if this is a valid MFA challenge token (signed, unexpired, mfa_challenge=true). */
+    public boolean isMfaChallengeToken(String token) {
+        try {
+            return Boolean.TRUE.equals(parseClaims(token).get("mfa_challenge", Boolean.class));
+        } catch (JwtException | IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Restricted token for a role-mandatory user who hasn't enrolled MFA yet. It authenticates
+     * ONLY the enrol/activate endpoints (enforced in the filter) — not a full session.
+     */
+    public String generateMfaEnrolToken(String email) {
+        Date now = new Date();
+        Date exp = new Date(now.getTime() + MFA_ENROL_TTL_MS);
+        return Jwts.builder()
+                .subject(email)
+                .id(UUID.randomUUID().toString())
+                .claim("mfa_enrol", true)
+                .issuedAt(now)
+                .expiration(exp)
+                .signWith(getSigningKey(), Jwts.SIG.HS256)
+                .compact();
+    }
+
+    /** True if this is a valid enrol-only token (signed, unexpired, mfa_enrol=true). */
+    public boolean isMfaEnrolToken(String token) {
+        try {
+            return Boolean.TRUE.equals(parseClaims(token).get("mfa_enrol", Boolean.class));
+        } catch (JwtException | IllegalArgumentException e) {
+            return false;
+        }
     }
 
     public boolean validateToken(String token) {

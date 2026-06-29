@@ -60,6 +60,9 @@ spring:
 # Test environment settings
 app:
   security:
+    # MFA opt-in by default in tests; the role-enforcement IT overrides this to ADMIN.
+    mfa:
+      required-roles: ""
     jwt:
       secret: RxgP93EyGqmCG/JovZiDo3nJyHQFD/HIIn8zcQXeZfD6NijFEakcLzk0xKatgnE96o+DKBzUrrAW7ozJh+8SQg==
       expiration: 3600000  # 1 hour
