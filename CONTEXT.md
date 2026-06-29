@@ -9,11 +9,11 @@ This is **a template, not a product**. The immediate job is a faithful **MySQL â
 ## Language
 
 **Identity / User**:
-A person who can authenticate, regardless of which provider they used. One User may carry several provider links (Google, Spotify, â€¦) but has exactly one **Primary Provider**.
+A person who can authenticate, regardless of which provider they used. One User may carry several provider links (Google, Microsoft) but has exactly one **Primary Provider**.
 _Avoid_: account, profile (profile is a sub-view of a User, not the User itself).
 
 **AuthProvider**:
-A source of authentication: `LOCAL` (email+password) or a social provider (`GOOGLE`, `SPOTIFY`, `APPLE`, `SOUNDCLOUD`).
+A source of authentication: `LOCAL` (email+password) or a social provider (`GOOGLE`, `MICROSOFT`). Microsoft uses the multi-tenant `common` audience (any personal or work/school account). See ADR-0009.
 _Avoid_: identity provider, IdP (reserve those for a future SSO context if one ever exists).
 
 **Primary Provider**:
@@ -68,3 +68,4 @@ A per-User instant before which all access tokens are considered revoked. Set to
 | Multi-device + Redis | Session storage boundary | **Option A**: sessions/refresh tokens stay in **PostgreSQL** (durable, queryable for "list my sessions"); **Redis only for rate-limit buckets**, profile-activated, Caffeine in-memory default. Per-session refresh tokens (`@ManyToOne` User + `session_id` + device metadata); reuse detection per session. Hot path unchanged (no perf regression). See ADR-0007, ADR-0008. | 2026-06-25 |
 | Multi-device sessions | Token model | **Per-session Refresh Tokens** (`@ManyToOne` User + `session_id` + device metadata); supersedes one-token-per-user. List/revoke per device; reuse detection per session. See ADR-0007. | 2026-06-25 |
 | Redis boundary | What goes in Redis | **Rate-limit buckets ONLY**, profile-activated (Caffeine in-memory default). **Sessions stay in PostgreSQL** (durable + queryable); Redis is not on the auth-correctness path. No default-profile perf change. See ADR-0008. | 2026-06-25 |
+| Provider set | Which OAuth providers ship wired | **Google + Microsoft only.** Dropped the half-wired Spotify/Apple/SoundCloud scaffolding (enum, columns, mapping) so every named provider actually works. Microsoft audience = **`common`** (any Microsoft account), mirroring "any Google account"; single-tenant is a documented one-value override. See ADR-0009. | 2026-06-29 |

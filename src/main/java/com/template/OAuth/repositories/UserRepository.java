@@ -12,9 +12,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     // For OAuth provider IDs
     Optional<User> findByGoogleId(String googleId);
-    Optional<User> findBySpotifyId(String spotifyId);
-    Optional<User> findByAppleId(String appleId);
-    Optional<User> findBySoundcloudId(String soundcloudId);
+    Optional<User> findByMicrosoftId(String microsoftId);
 
     // For email verification
     Optional<User> findByVerificationToken(String token);

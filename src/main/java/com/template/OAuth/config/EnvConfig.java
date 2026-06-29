@@ -51,6 +51,8 @@ public class EnvConfig {
             // Other OAuth2 environment variables
             setEnvVar("GOOGLE_CLIENT_ID", dotenv.get("GOOGLE_CLIENT_ID"));
             setEnvVar("GOOGLE_CLIENT_SECRET", dotenv.get("GOOGLE_CLIENT_SECRET"));
+            setEnvVar("MICROSOFT_CLIENT_ID", dotenv.get("MICROSOFT_CLIENT_ID"));
+            setEnvVar("MICROSOFT_CLIENT_SECRET", dotenv.get("MICROSOFT_CLIENT_SECRET"));
 
             // Email configuration
             setEnvVar("EMAIL_HOST", dotenv.get("EMAIL_HOST", "smtp.gmail.com"));

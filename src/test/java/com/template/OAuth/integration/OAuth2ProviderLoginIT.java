@@ -40,9 +40,7 @@ class OAuth2ProviderLoginIT extends BaseIntegrationTest {
     static Stream<Arguments> providers() {
         return Stream.of(
                 Arguments.of("https://accounts.google.com", AuthProvider.GOOGLE),
-                Arguments.of("spotify", AuthProvider.SPOTIFY),
-                Arguments.of("apple", AuthProvider.APPLE),
-                Arguments.of("soundcloud", AuthProvider.SOUNDCLOUD));
+                Arguments.of("https://login.microsoftonline.com/common/v2.0", AuthProvider.MICROSOFT));
     }
 
     @ParameterizedTest
