@@ -46,6 +46,31 @@ spring:
               - openid
               - profile
               - email
+          microsoft:
+            # Microsoft (Entra ID) login. Audience is the multi-tenant 'common' endpoint, so
+            # any Microsoft account — personal or work/school — can sign in (mirrors Google's
+            # "any Google account"). To restrict to a single organisation, point the provider
+            # endpoints below at /<tenant-id>/ instead of /common/ and set issuer-uri. See ADR-0009.
+            provider: microsoft
+            client-id: ${MICROSOFT_CLIENT_ID:dummy-client-id}
+            client-secret: ${MICROSOFT_CLIENT_SECRET:dummy-client-secret}
+            client-name: Microsoft
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope:
+              - openid
+              - profile
+              - email
+        provider:
+          # Static 'common' endpoints (not issuer-uri) so the context boots without an OIDC
+          # discovery network call — required for the headless test box. The 'common' issuer is
+          # tenant-templated, so strict iss-equality is not enforced here by design (ADR-0009).
+          microsoft:
+            authorization-uri: https://login.microsoftonline.com/common/oauth2/v2.0/authorize
+            token-uri: https://login.microsoftonline.com/common/oauth2/v2.0/token
+            jwk-set-uri: https://login.microsoftonline.com/common/discovery/v2.0/keys
+            user-info-uri: https://graph.microsoft.com/oidc/userinfo
+            user-name-attribute: sub
     rate-limiting:
       enabled: true
       default-limit: 100        # General API requests per minute per IP
