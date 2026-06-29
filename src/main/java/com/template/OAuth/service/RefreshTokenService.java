@@ -4,6 +4,7 @@ import com.template.OAuth.config.AppProperties;
 import com.template.OAuth.config.JwtTokenProvider;
 import com.template.OAuth.config.RefreshTokenProvider;
 import com.template.OAuth.dto.RefreshTokenResponse;
+import com.template.OAuth.dto.SessionDto;
 import com.template.OAuth.entities.RefreshToken;
 import com.template.OAuth.entities.User;
 import com.template.OAuth.enums.AuditEventType;
@@ -23,6 +24,8 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -138,8 +141,9 @@ public class RefreshTokenService {
                     "Refresh token exceeded its absolute lifetime; please log in again");
         }
 
-        // Generate new JWT
-        String newAccessToken = jwtTokenProvider.generateToken(refreshToken.getUser().getEmail());
+        // Generate new JWT, re-binding it to the same session (ADR-0007) so the sid survives rotation.
+        String newAccessToken = jwtTokenProvider.generateToken(
+                refreshToken.getUser().getEmail(), refreshToken.getSessionId());
 
         // Rotate refresh token (store the hash, hand the raw value to the client). Remember the
         // hash we just consumed so a later replay of it is detected as reuse.
@@ -166,6 +170,25 @@ public class RefreshTokenService {
             // Admin forced-logout / ban: drop ALL of the user's sessions.
             refreshTokenRepository.deleteAllByUser(user);
         });
+    }
+
+    /**
+     * The user's active sessions/devices (multi-device, ADR-0007), newest-first, with the caller's
+     * current session flagged via {@code currentSessionId} (the sid claim on the access token).
+     */
+    @Transactional(readOnly = true)
+    public List<SessionDto> listSessions(User user, String currentSessionId) {
+        return refreshTokenRepository.findByUser(user).stream()
+                .sorted(Comparator.comparing(RefreshToken::getCreatedAt,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .map(rt -> new SessionDto(
+                        rt.getSessionId(),
+                        rt.getUserAgent(),
+                        rt.getIpAddress(),
+                        rt.getCreatedAt(),
+                        rt.getLastUsedAt(),
+                        rt.getSessionId().equals(currentSessionId)))
+                .toList();
     }
 
     /** Revoke a single session/device owned by the user (multi-device, ADR-0007). */

@@ -74,6 +74,15 @@ public class JwtTokenProvider {
     }
 
     public String generateToken(String email) {
+        return generateToken(email, null);
+    }
+
+    /**
+     * Issue an access token bound to a session via the {@code sid} claim (multi-device, ADR-0007).
+     * The sid lets "list my sessions" flag which row is the caller's current device without a DB
+     * lookup on the access-token fast-path. A null sessionId omits the claim (legacy callers).
+     */
+    public String generateToken(String email, String sessionId) {
         UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
         List<String> roles = userDetails.getAuthorities().stream()
@@ -83,15 +92,26 @@ public class JwtTokenProvider {
         Date now = new Date();
         Date exp = new Date(now.getTime() + appProperties.getSecurity().getJwt().getExpiration());
 
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(email)
                 .id(UUID.randomUUID().toString()) // jti — enables future per-token deny-list (with Redis)
                 .claim("roles", roles)
                 .issuedAt(now)
-                .expiration(exp)
-                // 0.12.x: use SecureDigestAlgorithm from Jwts.SIG
-                .signWith(getSigningKey(), Jwts.SIG.HS256)
-                .compact();
+                .expiration(exp);
+        if (sessionId != null) {
+            builder.claim("sid", sessionId);
+        }
+        // 0.12.x: use SecureDigestAlgorithm from Jwts.SIG
+        return builder.signWith(getSigningKey(), Jwts.SIG.HS256).compact();
+    }
+
+    /** The session id ({@code sid} claim) this access token is bound to, or null if absent/unreadable. */
+    public String getSessionId(String token) {
+        try {
+            return parseClaims(token).get("sid", String.class);
+        } catch (JwtException | IllegalArgumentException e) {
+            return null;
+        }
     }
 
     public String getEmailFromToken(String token) {
