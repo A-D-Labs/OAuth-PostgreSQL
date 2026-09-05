@@ -125,7 +125,7 @@ PostgreSQL).
 
 ```bash
 # 1. Clone
-git clone https://github.com/Nootje88/OAuth-PostgreSQL.git
+git clone https://github.com/A-D-Labs/OAuth-PostgreSQL.git
 cd OAuth-PostgreSQL
 
 # 2. Start a local PostgreSQL (or use your own)
