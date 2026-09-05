@@ -25,12 +25,12 @@
          KEPT: the 3.5.16 BOM still ships versions BELOW the CVE-fix floors, so each of these
          is required to stay Trivy HIGH/CRITICAL-clean:
            - tomcat     10.1.59       (BOM 10.1.55; fix >=10.1.58 — CVE-2026-65182/65905/68525; Central skipped .58)
-           - netty      4.1.136.Final (BOM 4.1.135.Final; CVE-2026-59901)
+           - netty      4.1.137.Final (BOM 4.1.135.Final; CVE-2026-59901)
            - postgresql 42.7.13       (BOM 42.7.11; fix >=42.7.12 — CVE-2026-54291)
          DROPPED: jackson-bom — our override (2.21.4) was identical to the BOM's managed
          version and not CVE-flagged, i.e. a redundant no-op pin; let the BOM manage it.
          Revisit each override when a future Boot patch's BOM catches up to these floors. -->
-    <netty.version>4.1.136.Final</netty.version>
+    <netty.version>4.1.137.Final</netty.version>
     <tomcat.version>10.1.59</tomcat.version>
     <postgresql.version>42.7.13</postgresql.version>
   </properties>
