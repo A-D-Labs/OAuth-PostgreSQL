@@ -20,7 +20,7 @@
   <properties>
     <maven.compiler.release>25</maven.compiler.release>
     <lombok.version>1.18.48</lombok.version>
-    <jjwt.version>0.12.6</jjwt.version>
+    <jjwt.version>0.13.0</jjwt.version>
     <!-- Security overrides (#25, refreshed W36 #70): bump transitive deps past the Spring
          Boot 3.5.16 BOM defaults to clear the HIGH/CRITICAL CVEs the Trivy gate flagged.
          tomcat 10.1.59 (>=10.1.58 fix for CVE-2026-65182/65905/68525; Central skipped .58),
