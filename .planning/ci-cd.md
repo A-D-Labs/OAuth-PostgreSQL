@@ -39,7 +39,7 @@ Tier 1 adds **no** application code and touches **none** of the domain language 
 - **Maven cache:** `actions/setup-java` built-in `cache: maven` (or `actions/cache` on `~/.m2`) keyed on `pom.xml`.
 - **Dependabot:** `.github/dependabot.yml` with two ecosystems — `maven` and `github-actions`, weekly.
 - **Trivy:** `aquasecurity/trivy-action` in `fs`/`repo` mode (or scan the built artifact), `severity: HIGH,CRITICAL`, `exit-code: 1`.
-- **Branch protection:** after the workflow's check name is stable, `gh api` PUT on `repos/Nootje88/OAuth-PostgreSQL/branches/dev/protection` requiring the CI status check; no required reviews on dev.
+- **Branch protection:** after the workflow's check name is stable, `gh api` PUT on `repos/A-D-Labs/OAuth-PostgreSQL/branches/dev/protection` requiring the CI status check; no required reviews on dev.
 - **ADR-0004** records all of the above and supersedes ADR-0002.
 
 ## Issue slicing preview (finalised in stage 3 / to-issues)
